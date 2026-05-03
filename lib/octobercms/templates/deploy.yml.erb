@@ -1,0 +1,53 @@
+service: <%= service %>
+image: <%= image %>
+
+servers:
+<% servers.each do |ip| -%>
+  - <%= ip %>
+<% end -%>
+
+proxy:
+  ssl: true
+  host: <%= domain %>
+  app_port: 80
+
+registry:
+<% if registry_server && registry_server != "docker.io" -%>
+  server: <%= registry_server %>
+<% end -%>
+  username: <%= registry_username %>
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+builder:
+  secrets:
+    - OCTOBER_LICENCE_KEY
+
+env:
+  clear:
+    APP_ENV: production
+    APP_DEBUG: "false"
+  secret:
+    - APP_KEY
+    - APP_URL
+    - DB_HOST
+    - DB_DATABASE
+    - DB_USERNAME
+    - DB_PASSWORD
+    - OCTOBER_LICENCE_KEY
+<% if mysql_accessory -%>
+
+accessories:
+  db:
+    image: mysql:8.0
+    host: <%= servers.first %>
+    port: "127.0.0.1:3306:3306"
+    env:
+      clear:
+        MYSQL_DATABASE: <%= db_name %>
+      secret:
+        - MYSQL_ROOT_PASSWORD
+        - DB_PASSWORD
+    volumes:
+      - /var/mysql/data:/var/lib/mysql
+<% end -%>
