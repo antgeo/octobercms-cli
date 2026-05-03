@@ -93,15 +93,19 @@ If `/app/.env` already exists in the container (bind-mounted or baked into a der
 
 ## Volume contract
 
-Exactly one persistent volume is required:
+Three persistent volumes are required:
 
 | Mount | Purpose |
 |---|---|
-| `/app/storage` | User uploads, generated thumbnails, cache, sessions, logs — everything writable at runtime |
+| `/app/storage` | User uploads, generated thumbnails, cache, sessions, logs |
+| `/app/plugins` | Plugins — seeded from image defaults on first run, then managed via admin UI or Composer |
+| `/app/themes` | Themes — seeded from image defaults on first run, then managed via admin UI |
 
-Everything else in the image is immutable. Plugins and themes are baked into the image at build time via your derived `Dockerfile`, not installed at runtime.
+On first run with a fresh volume, `/app/plugins` and `/app/themes` are automatically populated from the image's built-in defaults. Subsequent container restarts leave the volume contents untouched, so anything installed via the admin UI persists across deployments.
 
-**This contract is permanent.** Once published, `/app/storage` is the writable volume for the life of the `4.x` image series. Any change is a major version bump with a documented migration path.
+> **Note:** Plugins that require additional Composer packages (i.e. have their own `composer.json` dependencies beyond OctoberCMS core) cannot be installed via the admin UI. Manage those in a derived `Dockerfile` using Composer.
+
+**This contract is permanent.** Once published, these three volume mounts are the writable surface for the life of the `4.x` image series. Any change is a major version bump with a documented migration path.
 
 ---
 

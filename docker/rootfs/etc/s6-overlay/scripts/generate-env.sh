@@ -59,3 +59,16 @@ chmod 640 "${ENV_FILE}"
 chown www-data:www-data "${ENV_FILE}"
 
 echo "[generate-env] .env written"
+
+# Seed plugins and themes from the image skeleton on first run.
+# When a volume is mounted at /app/plugins or /app/themes the directory starts
+# empty. Copying from /app-skeleton/ restores the baked-in defaults so the CMS
+# works out of the box. Subsequent runs leave existing content untouched,
+# preserving anything installed via the admin UI.
+for dir in plugins themes; do
+    if [ -d "/app-skeleton/${dir}" ] && [ -z "$(ls -A /app/${dir} 2>/dev/null)" ]; then
+        cp -r "/app-skeleton/${dir}/." "/app/${dir}/"
+        chown -R www-data:www-data "/app/${dir}"
+        echo "[generate-env] seeded /app/${dir} from skeleton"
+    fi
+done

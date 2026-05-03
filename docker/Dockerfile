@@ -106,7 +106,11 @@ RUN find /etc/s6-overlay/s6-rc.d -name run -o -name up | xargs chmod +x \
         /app/storage/framework/sessions \
         /app/storage/framework/views \
         /app/storage/logs \
- && chown -R www-data:www-data /app/storage \
+        /app/plugins \
+        /app/themes \
+        /app-skeleton/plugins \
+        /app-skeleton/themes \
+ && chown -R www-data:www-data /app/storage /app/plugins /app/themes /app-skeleton \
  && chown -R www-data:www-data /var/lib/nginx /var/log/nginx
 
 WORKDIR /app
@@ -126,5 +130,14 @@ FROM base
 
 COPY --from=vendor /app /app
 
-# Re-apply storage ownership after COPY (COPY --from resets ownership on /app).
-RUN chown -R www-data:www-data /app/storage
+# Move plugins and themes to a skeleton directory so the init script can seed
+# the volume-mounted directories on first run. This allows plugins and themes
+# installed via the OctoberCMS admin UI to persist across deployments.
+RUN mv /app/plugins /app-skeleton/plugins \
+ && (mv /app/themes /app-skeleton/themes 2>/dev/null || mkdir -p /app-skeleton/themes) \
+ && mkdir -p /app/plugins /app/themes \
+ && chown -R www-data:www-data \
+        /app/storage \
+        /app/plugins \
+        /app/themes \
+        /app-skeleton

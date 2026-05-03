@@ -96,6 +96,27 @@ RSpec.describe "Docker image structure", :integration do
     end
   end
 
+  describe "/app/plugins" do
+    it "exists and is owned by www-data" do
+      out, _, _ = sh_in_image("stat -c '%U' /app/plugins")
+      expect(out).to eq("www-data")
+    end
+  end
+
+  describe "/app/themes" do
+    it "exists and is owned by www-data" do
+      out, _, _ = sh_in_image("stat -c '%U' /app/themes")
+      expect(out).to eq("www-data")
+    end
+  end
+
+  describe "/app-skeleton" do
+    it "exists and is owned by www-data" do
+      out, _, _ = sh_in_image("stat -c '%U' /app-skeleton")
+      expect(out).to eq("www-data")
+    end
+  end
+
   # ── Secret hygiene ────────────────────────────────────────────────────────────
 
   describe "secret hygiene" do
