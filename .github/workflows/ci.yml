@@ -29,7 +29,6 @@ jobs:
         with:
           context: .
           file: docker/Dockerfile
-          target: base
           load: true
           tags: octobercms:base
           cache-from: type=gha
