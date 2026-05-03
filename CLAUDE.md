@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**M1 (Docker runtime image) is complete.** The gem is in development (not yet started).
+**M1 (Docker runtime image) is complete. M2 (licence key management) is complete.** M3 (gem skeleton + `init` command) is next.
 
 ## What this project is
 
@@ -76,51 +76,64 @@ generate-env (oneshot) → php-fpm (longrun) → nginx (longrun)
 
 s6-overlay v3 supervises PHP-FPM and Nginx. `generate-env` writes `/app/.env` from environment variables before PHP starts. If `/app/.env` already exists (bind-mounted or baked in), it is left untouched. Nginx waits for the PHP-FPM Unix socket (`/run/php-fpm.sock`) before accepting connections.
 
-## Planned gem structure
+## Gem structure (M2 — implemented)
 
 ```
 bin/octobercms               # CLI entrypoint
 lib/octobercms/
   cli.rb                     # Thor command tree root
   version.rb
-  config.rb                  # Project config loader
-  commands/                  # Thin: parse, prompt, dispatch
-    init.rb
-    deploy.rb
-    plugin.rb
-    backup.rb / restore.rb
-    console.rb / logs.rb
-    doctor.rb
-    auth/{login,logout,status,refresh}.rb
-    project/{list,select,create}.rb
-  generators/                # ERB template renderers
-    dockerfile.rb / deploy_yml.rb / env.rb
-    composer_json.rb / auth_json.rb
-    gitignore.rb / project_file.rb
-  services/                  # Business logic
-    kamal.rb                 # tty-command wrapper around kamal
-    composer.rb
-    docker.rb                # BuildKit secret handling
-    backup_engine.rb
-    plugin_index.rb          # curated plugin → Packagist mapping
-    api_client.rb            # OctoberCMS account API
-    auth_store.rb            # ~/.config/octobercms/auth.yml
-    oauth_listener.rb        # local HTTP listener for OAuth callback
-    license.rb               # resolution, validation, redaction
-  templates/                 # ERB templates (Dockerfile, deploy.yml, etc.)
+  commands/
+    auth.rb                  # auth setup / status / remove
+  services/
+    auth_store.rb            # credential resolution + storage
 spec/
+  unit/
+    auth_commands_spec.rb    # 38 tests for auth commands
+    auth_store_spec.rb       # 16 tests for AuthStore
+```
+
+### auth_store.rb — credential resolution order
+
+1. `OCTOBER_LICENCE_KEY` environment variable (highest priority, CI/operator)
+2. `OCTOBER_LICENCE_KEY` in `.kamal/secrets` (per-project key)
+3. `~/.config/octobercms/auth.yml` (global default, `licence_key:` key)
+
+`AuthStore.resolve(project_dir:)` returns `{key: String, source: :env | :project | :global}` or `nil`.
+
+File writes are atomic: write to `.tmp` → `chmod 0600` → rename. Keys in `.kamal/secrets` are stored quoted: `OCTOBER_LICENCE_KEY="value"`. Reader strips surrounding quotes for backward compatibility.
+
+### validate_key — how it works
+
+`auth setup` and `auth status --validate` hit `https://gateway.octobercms.com/packages.json` with HTTP Basic auth (username: `octobercms`, password: licence key). `200` → valid, `401` → rejected, other → unexpected. The licence key is redacted from all output.
+
+### Key gem dependencies
+
+- **Thor** (`~> 1.3`) — command tree; `raise Thor::Error` for user-facing errors
+- **tty-prompt** (`~> 0.23`) — masked key input, yes/no confirms, select menus
+- **tty-command, tty-logger** (`~> 0.10`, `~> 0.6`) — reserved for M4 deploy pipeline
+- **Net::HTTP** (stdlib) — gateway validation; no extra HTTP gem dependency in M2
+
+### Running gem tests
+
+```sh
+bundle exec rspec spec/unit/auth_store_spec.rb
+bundle exec rspec spec/unit/auth_commands_spec.rb
+bundle exec rspec --tag '~integration'  # all unit tests
+```
+
+## Planned gem additions (M3+)
+
+```
+lib/octobercms/commands/
+  init.rb / deploy.rb / plugin.rb / backup.rb / doctor.rb
+lib/octobercms/generators/   # ERB template renderers
+lib/octobercms/services/
+  kamal.rb / composer.rb / docker.rb / api_client.rb
+lib/octobercms/templates/    # Dockerfile, deploy.yml, etc.
 ```
 
 Commands are thin (parsing, prompting, dispatching). Logic lives in services and generators.
-
-## Key gem dependencies
-
-- **Thor** — command tree (same as Rails CLI and Kamal)
-- **tty-prompt, tty-spinner, tty-command, tty-logger** — interactive UX and shell-out
-- **dotenv** — `.env` parsing
-- **faraday** or **http.rb** — HTTP client for API calls and Packagist lookups
-
-Deliberately avoided: ActiveRecord/Sequel, Sidekiq/Resque, bundler runtime bloat.
 
 ## Architecture: how deploy works
 

@@ -1,0 +1,90 @@
+name: Build and publish gem
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Run unit tests
+        run: |
+          mkdir -p tmp
+          bundle exec rspec --tag '~integration' \
+            --format progress \
+            --format RspecJunitFormatter --out tmp/rspec.xml
+
+      - name: Upload test results
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: rspec-results
+          path: tmp/rspec.xml
+
+  build:
+    name: Build and publish gem
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      # Verify the gem version constant matches the git tag so a mismatched
+      # release can't be published accidentally.
+      - name: Verify version matches tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          GEM_VERSION=$(ruby -r ./lib/octobercms/version \
+            -e 'puts OctoberCMS::VERSION')
+          if [ "$TAG" != "$GEM_VERSION" ]; then
+            echo "ERROR: tag ${GITHUB_REF_NAME} does not match gem version ${GEM_VERSION}" >&2
+            exit 1
+          fi
+
+      - name: Build gem
+        run: gem build octobercms.gemspec
+
+      - name: Upload gem artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: octobercms-gem
+          path: "*.gem"
+          retention-days: 30
+
+      - name: Publish to GitHub Packages
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          mkdir -p ~/.gem
+          printf -- "---\n:github: Bearer %s\n" "${{ secrets.GITHUB_TOKEN }}" \
+            > ~/.gem/credentials
+          chmod 0600 ~/.gem/credentials
+          gem push --key github \
+            --host "https://rubygems.pkg.github.com/${{ github.repository_owner }}" \
+            *.gem

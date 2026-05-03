@@ -69,7 +69,7 @@ The image is the long-term commitment, so it ships first and gets the most revie
 
 **Post-completion work (required before M2 ships):** Extend `generate-env.sh` to run `php artisan project:set $OCTOBER_LICENCE_KEY` on startup when the env var is set and `/app/auth.json` does not already exist. Add `OCTOBER_LICENCE_KEY` to the optional env var table in the README. Update integration tests to cover this path.
 
-### M2 — Licence key management (weeks 4-5)
+### M2 — Licence key management (weeks 4-5) ✅ COMPLETE
 
 The credential is the OctoberCMS **licence key** — a single string the user already has from their account. It serves two distinct purposes:
 
