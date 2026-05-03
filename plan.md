@@ -11,11 +11,10 @@ The v1 target is **"`octobercms init` → `octobercms deploy` → working HTTPS 
 ### In scope for v1
 
 - `octobercms` Ruby gem with the core command set
-- Single official Docker image (one PHP version, one OctoberCMS version)
+- Single official Docker image (one PHP version; OctoberCMS version is determined by the user's own project)
 - Kamal-based deployment with kamal-proxy for TLS
 - MySQL via Kamal accessory (single-server) and external managed MySQL support
-- OctoberCMS account integration via API: browser-based OAuth login, Project picker, automatic licence key fetching at build time
-- Build-time Composer auth via Docker BuildKit secrets (licence credentials never enter image layers)
+- Secure local storage and automatic build-time injection of OctoberCMS gateway credentials via Docker BuildKit secrets (credentials never enter image layers)
 - Composer-based plugin add/remove
 - Manual backup/restore for database and storage
 - A documentation site with a 10-minute "deploy your first site" tutorial
@@ -68,60 +67,49 @@ The image is the long-term commitment, so it ships first and gets the most revie
 
 **Exit criteria:** A developer can `FROM ghcr.io/antgeo/octobercms:php8.3`, COPY their OctoberCMS project in, `docker run -e ... myapp:latest` against their own MySQL, and get a working OctoberCMS site at `localhost:80`.
 
-### M2 — Account auth and API client (weeks 4-5)
+### M2 — Credential management (weeks 4-5)
 
-Coordinated with the OctoberCMS web team to define and ship the account API surface that the CLI depends on. This milestone is partially blocked on the API being ready; in parallel the CLI team builds against a mocked API.
+This is a **third-party tool**. The CLI does not have access to an OctoberCMS account API. Users already have OctoberCMS installed in their own project and already hold gateway credentials (HTTP Basic auth against `gateway.octobercms.com`). M2's job is to store those credentials securely and inject them automatically at build time — not to implement an OAuth flow.
 
-API surface required (delivered by the OctoberCMS web team):
-- OAuth-style authorize endpoint with local callback (`/cli/authorize`)
-- Token introspection endpoint
-- List Projects endpoint (paginated)
-- Fetch licence key for a Project ID endpoint
-- Create Project endpoint (with free-licence default for new accounts)
-- Token revocation endpoint
-- Machine-account token generation (in the account portal UI)
+- `octobercms auth setup` — prompts for gateway username and password (or reads from an existing `~/.composer/auth.json`), validates them with a HEAD request against `gateway.octobercms.com`, and stores them at `~/.config/octobercms/auth.yml` (`0600`)
+- `octobercms auth status` — shows whether stored credentials exist and whether a gateway round-trip succeeds
+- `octobercms auth remove` — deletes stored credentials
+- `OCTOBER_COMPOSER_AUTH` env var accepted as a JSON string in CI environments as an alternative to file-stored credentials (same format as `auth.json`)
+- `services/auth_store.rb` — read/write `~/.config/octobercms/auth.yml`; resolves credentials in priority order: env var → stored file → `~/.composer/auth.json` fallback
+- `services/gateway.rb` — validates credentials with a live HEAD request against the OctoberCMS gateway; distinct error messages for wrong credentials vs network failure vs gateway unreachable
+- All credential values redacted from logs and error output under all circumstances
 
-CLI work:
-- `octobercms auth login` browser-based flow with local HTTP listener on a random port
-- `octobercms auth login --token <token>` fallback for non-interactive environments
-- `octobercms auth logout`, `auth status`, `auth refresh` commands
-- `octobercms project list`, `project select`, `project create` commands
-- `~/.config/octobercms/auth.yml` storage with `0600` permissions
-- `OCTOBER_API_TOKEN` env var support for CI
-- `services/api_client.rb` with retries, rate-limit handling, and error mapping
-- `services/oauth_listener.rb` that handles the local callback securely (CSRF state, port collisions, browser timeout)
-- All credentials redacted from logs and error output
-
-**Exit criteria:** A customer can run `octobercms auth login`, complete the browser flow, then run `octobercms project list` and see their actual Projects from their account. `octobercms auth status` shows licence type and expiry for each Project.
+**Exit criteria:** A developer can run `octobercms auth setup`, enter their gateway credentials, and have `octobercms auth status` confirm they are valid. A subsequent `octobercms deploy` injects those credentials via BuildKit secret mount without the developer doing anything extra. CI works via `OCTOBER_COMPOSER_AUTH`.
 
 ### M3 — Gem skeleton and `init` command (weeks 6-7)
 
-Builds on M2's auth and API client.
+Builds on M2's credential management. Run inside the user's existing OctoberCMS project directory.
 
 - Thor-based command tree with `tty-prompt` for interactive flows and `tty-spinner` for progress
-- `octobercms init` command with the full interactive flow: project name, domain, server, database choice, registry choice, **Project picker (using the M2 API client)**
-- The init flow handles unauthenticated users by triggering `auth login` inline before proceeding
-- The Project picker shows licence type and expiry inline, with a "Create new Project (free first-year licence)" inline option that calls the API to provision a Project
-- Generators for `Dockerfile`, `config/deploy.yml`, `.kamal/project` (committable, contains Project ID), `.kamal/secrets`, `.env.example`, `composer.json`, `auth.json.example`, `.gitignore`
-- `.gitignore` always includes `auth.json`, `.env`, and `.kamal/secrets`
+- `octobercms init` command: detects an existing OctoberCMS project, then prompts for deployment config — domain, server address, database choice, container registry
+- If M2 credentials are not yet configured, triggers `auth setup` inline before proceeding
+- Generators for `Dockerfile` (derived FROM the M1 runtime image with BuildKit secret mount), `config/deploy.yml`, `.kamal/secrets`, `.env.example`, `.gitignore`
+- The generated `Dockerfile` uses the M1 runtime image and handles BuildKit secret mount for composer credentials automatically — the developer never writes this boilerplate
+- `.gitignore` always excludes `auth.json`, `.env`, and `.kamal/secrets`
+- Generators detect existing files and prompt or merge rather than clobber
 - All generators use ERB templates that live in the gem; output is deterministic and diffable
 - Project structure follows Kamal conventions so `kamal` commands work alongside `octobercms` commands
 - Gem published to RubyGems as `0.1.0` (pre-release)
 
-**Exit criteria:** A developer can run `octobercms init my-site`, log in via browser if needed, pick a Project from their account, answer the remaining prompts, and end up with a directory containing valid Kamal config, a committable `.kamal/project`, properly gitignored secrets, and a Dockerfile that targets the M1 Docker image with BuildKit secret mounts.
+**Exit criteria:** A developer can run `octobercms init` inside their OctoberCMS project, answer the prompts, and end up with a `Dockerfile` targeting the M1 runtime image, a valid `config/deploy.yml`, properly gitignored secrets, and a `doctor` run that passes.
 
 ### M4 — Deploy lifecycle (weeks 8-10)
 
-- `octobercms deploy` orchestrates the full pipeline: pre-flight checks → fetch licence key → build → push → migrate → rolling deploy → post-deploy
-- Pre-flight checks include licence health (via the API) and authentication state; failures here are fast and clear
-- Build step fetches the licence key from the API, generates a temporary `auth.json` in a secure temp directory, and uses Docker BuildKit (`DOCKER_BUILDKIT=1`) with `--mount=type=secret,id=composer_auth` to inject it into the build without baking it into any image layer; the temp file is deleted in a `begin/ensure` block
+- `octobercms deploy` orchestrates the full pipeline: pre-flight checks → build → push → migrate → rolling deploy → post-deploy
+- Pre-flight checks include gateway credential validity and a reachability check; failures here are fast and clear
+- Build step resolves stored credentials (via `auth_store.rb`), writes a temporary `auth.json` to a secure temp directory, and runs `docker build` with `DOCKER_BUILDKIT=1 --secret id=composer_auth,src=<temp>` so credentials never enter image layers; the temp file is deleted in a `begin/ensure` block
 - Migrations run in a one-shot container before the rolling deploy, not during it
 - Each pipeline step is its own subcommand (`octobercms build`, `octobercms migrate`, `octobercms push`) for debugging
-- `octobercms doctor` runs pre-flight checks: SSH access, Docker installed on targets (with BuildKit support), registry reachability, **account auth validity, Project licence health (warns at 30 days to expiry, errors at expired), Update Gateway round-trip**, DNS resolution, ports 80/443 open, env var sanity, gitignore correctly excludes `auth.json` / `.env` / `.kamal/secrets`, git history grep for licence key patterns
+- `octobercms doctor` runs pre-flight checks: SSH access, Docker installed on targets (BuildKit-capable), registry reachability, gateway credential validity (live HEAD against the gateway), DNS resolution, ports 80/443 open, env var sanity, gitignore excludes `auth.json` / `.env` / `.kamal/secrets`, git history grep for credential patterns
 - `octobercms console` wraps `kamal app exec --interactive`
 - `octobercms logs` wraps `kamal app logs` with sensible defaults (follow, tail 100)
 - Kamal is invoked via `tty-command` shell-out, not by `require`-ing it — keeps version coupling loose
-- The CLI never logs, echoes, or otherwise surfaces the licence key or account token in command output
+- The CLI never logs, echoes, or otherwise surfaces credentials in command output
 
 **Exit criteria:** Running `octobercms deploy` against a fresh Hetzner VPS produces a working HTTPS OctoberCMS site within 5 minutes of the first deploy and within 90 seconds for subsequent deploys, with no licence credentials present in the published image (verified by `docker history` inspection in CI) and no logged tokens or keys in any deploy output (verified by log scanning in CI).
 
@@ -169,11 +157,7 @@ Builds on M2's auth and API client.
 
 ## Risks and mitigations
 
-**OctoberCMS account API not ready in time for M2.** The CLI's M2 depends on the OctoberCMS web team shipping the account API endpoints. If those slip, M2 slips and everything downstream slips with it. Mitigation: API spec is locked in week 1 in a joint design doc; the CLI team builds against a mocked API in parallel; weekly sync between CLI and web teams; agreed contingency to ship the v1 with a manual-credential fallback flow if the API is more than 2 weeks late.
-
-**OAuth flow edge cases.** Browser-based auth has many failure modes: port already in use, browser doesn't open, customer closes browser before completing, CSRF state mismatch, network timeouts. Mitigation: model the implementation directly on `gh auth login` and `flyctl auth login` (both well-tested patterns); ship a `--token` fallback for any flow that breaks; comprehensive test matrix in CI covering the common failure modes.
-
-**Account token compromise.** A leaked token grants read access to the customer's Project list and licence keys. Mitigation: file mode `0600` enforced; token never logged or displayed; redaction filter on all output; `octobercms auth refresh` and `auth logout` for rotation/revocation; clear documentation on token security; the OctoberCMS account portal must support revoking individual tokens (web team dependency).
+**Gateway credential compromise.** Stored credentials grant Composer access to `gateway.octobercms.com`. Mitigation: file mode `0600` enforced; credentials never logged or displayed; redaction filter on all output; `octobercms auth remove` to delete stored credentials; `doctor` greps git history for any string matching the credential format.
 
 **Kamal makes a breaking change mid-development.** Mitigation: pin to a known-good Kamal version, integrate Kamal updates via a dedicated test cycle, abstract Kamal-specific concepts behind our own service objects.
 
@@ -181,9 +165,7 @@ Builds on M2's auth and API client.
 
 **Customers want to install plugins via the OctoberCMS admin UI.** Both paths are supported: build-time via Composer (recommended for immutable deploys) and runtime via the admin UI (supported because `/app/plugins` and `/app/themes` are writable by `www-data`). Users who want admin UI installs to survive redeployments mount those directories as volumes.
 
-**Customers don't realise they need a Project License until first deploy fails.** Mitigation: with the API integration the CLI knows the customer's licence state from `auth login` onwards — `init` shows licence health inline in the Project picker, `doctor` warns on every run when licence is approaching expiry, deploys fail fast in pre-flight rather than 30 seconds into a Docker build. The "Create new Project (free first-year licence)" inline option converts evaluators directly without requiring them to leave the CLI.
-
-**Licence credentials accidentally committed or baked into images.** Mitigation: with the API integration, licence keys never live in the project directory at all — they're fetched per-build. `init` always writes `auth.json`, `.env`, and `.kamal/secrets` to `.gitignore`; the build uses BuildKit secret mounts so credentials never enter image layers; CI runs `docker history` against the built image to assert no auth values are present; `doctor` greps git history for any string matching the licence key format and warns loudly.
+**Credentials accidentally committed or baked into images.** Mitigation: `init` always writes `auth.json`, `.env`, and `.kamal/secrets` to `.gitignore`; the build uses BuildKit secret mounts so credentials never enter image layers; `doctor` greps git history for any string matching the credential format and warns loudly.
 
 **Older Docker daemons without BuildKit support.** Mitigation: `doctor` checks Docker version on target servers and on the developer's machine, requires BuildKit-capable Docker (20.10+, which has been default for years), produces a clear upgrade message if the check fails.
 
@@ -201,9 +183,7 @@ The web team's API work is on the critical path. If it slips by more than 2 week
 
 ## Dependencies on other teams
 
-**OctoberCMS web team (M2 critical path):** ship the account API endpoints (authorize, token introspect, list projects, fetch licence key, create project, revoke token), plus machine-account token generation in the account portal UI. Estimated 2-3 weeks of web-team effort, ideally completed by week 4 of the CLI plan so M2 has a real API to integrate against rather than a mock for its full duration.
-
-**OctoberCMS support team:** review the doctor command's error messages and the docs site's troubleshooting section before launch. Estimated 1 week of part-time review across M6 and M7.
+This is an independent third-party tool. There are no external team dependencies on the critical path. M2 depends only on the publicly documented OctoberCMS gateway (`gateway.octobercms.com`) continuing to accept HTTP Basic credentials for Composer auth, which is stable behaviour tied to the existing licensing model.
 
 ## Success metrics for v1
 
