@@ -50,20 +50,23 @@ The v1 target is **"`octobercms init` → `octobercms deploy` → working HTTPS 
 
 ## Milestones
 
-### M1 — Docker image foundation (weeks 1-3)
+### M1 — Docker runtime image foundation (weeks 1-3) ✅ COMPLETE
 
 The image is the long-term commitment, so it ships first and gets the most review.
 
-- Multi-stage Dockerfile: `composer:2` for vendor stage, `php:8.3-fpm-alpine` for runtime
-- s6-overlay for process supervision (PHP-FPM + Nginx in one container)
-- Volume contract finalised: `/app/storage` (writable user data) is the only persistent volume; plugins and themes are baked at build time
-- Entrypoint script renders `config/*.php` from environment variables on startup
-- `/up` health check endpoint returns 200 only when PHP-FPM is responsive and the database is reachable
-- Image published to GHCR with semver tags (`octobercms:3.5`, `octobercms:3.5-php8.3`, `octobercms:latest`)
-- Image size target: under 300 MB compressed
-- README documents the env var contract, volume contract, and exec-into-container debugging recipes
+**Model:** Runtime environment only (Laravel Sail-style). No OctoberCMS code is baked in. Users bring their own OctoberCMS project and build a derived image on top of the runtime.
 
-**Exit criteria:** A developer can `docker run -e ... octobercms/octobercms:latest` against their own MySQL and get a working OctoberCMS site at `localhost:80`.
+- Single-stage Dockerfile: `php:8.3-fpm-alpine` with PHP extensions, Nginx, and s6-overlay
+- No `composer:2` vendor stage — Composer runs in the user's derived image, not in this repo
+- s6-overlay v3 for process supervision (PHP-FPM + Nginx in one container)
+- Volume contract finalised: `/app/storage` (writable user data) is the only required persistent volume; `/app/plugins` and `/app/themes` are writable by `www-data` for admin UI installer support
+- `generate-env` oneshot writes `/app/.env` from environment variables before PHP starts; skips if `.env` already exists
+- `/up` health check endpoint — the user's OctoberCMS application is responsible for implementing this route; the CLI scaffolds a healthcheck plugin in M3
+- Image published to GHCR with PHP-version tags (`ghcr.io/antgeo/octobercms:php8.3`, `latest`)
+- Image size target: under 300 MB compressed (CI enforces)
+- README documents how to build a derived image, the env var contract, volume contract, and debugging recipes
+
+**Exit criteria:** A developer can `FROM ghcr.io/antgeo/octobercms:php8.3`, COPY their OctoberCMS project in, `docker run -e ... myapp:latest` against their own MySQL, and get a working OctoberCMS site at `localhost:80`.
 
 ### M2 — Account auth and API client (weeks 4-5)
 
@@ -124,11 +127,12 @@ Builds on M2's auth and API client.
 
 ### M5 — Plugin management (weeks 11-12)
 
-- `octobercms plugin add <name>` updates `composer.json`, regenerates `composer.lock`, and prompts to redeploy
+- `octobercms plugin add <name>` updates the user's `composer.json`, regenerates `composer.lock`, and prompts to redeploy
 - `octobercms plugin remove <name>` reverses the above
 - `octobercms plugin list` shows installed plugins with versions and source (Packagist vs local path)
-- Local-path plugins supported: a `plugins/` directory in the project gets COPYed into the image at build
+- Local-path plugins supported: a `plugins/` directory in the user's project gets COPYed into their derived image at build
 - A small curated index of known-working OctoberCMS plugins (mapping plugin name → Packagist package) ships with the gem; falls back to direct Packagist lookup for anything not in the index
+- Admin UI plugin/theme installation is supported at runtime: `/app/plugins` and `/app/themes` are writable by `www-data`; mount them as volumes to persist installs across redeployments
 
 **Exit criteria:** `octobercms plugin add rainlab.user && octobercms deploy` results in the RainLab User plugin being installed and active on the deployed site.
 
@@ -175,7 +179,7 @@ Builds on M2's auth and API client.
 
 **OctoberCMS plugin ecosystem isn't all on Packagist.** Mitigation: ship a curated index for the top 50 plugins, document how to add local-path plugins, plan for a private Packagist (`satis`) in v2 if it becomes a real friction point.
 
-**Customers want to install plugins via the OctoberCMS admin UI.** Mitigation: document the build-time model clearly, position it as a feature (immutable deploys, atomic rollbacks), provide a `plugins/` directory escape hatch for local development.
+**Customers want to install plugins via the OctoberCMS admin UI.** Both paths are supported: build-time via Composer (recommended for immutable deploys) and runtime via the admin UI (supported because `/app/plugins` and `/app/themes` are writable by `www-data`). Users who want admin UI installs to survive redeployments mount those directories as volumes.
 
 **Customers don't realise they need a Project License until first deploy fails.** Mitigation: with the API integration the CLI knows the customer's licence state from `auth login` onwards — `init` shows licence health inline in the Project picker, `doctor` warns on every run when licence is approaching expiry, deploys fail fast in pre-flight rather than 30 seconds into a Docker build. The "Create new Project (free first-year licence)" inline option converts evaluators directly without requiring them to leave the CLI.
 

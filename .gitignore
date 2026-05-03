@@ -1,3 +1,8 @@
 .DS_Store
 auth.json
 tmp/
+# OctoberCMS scaffold files (belong in user's project, not in this repo)
+artisan
+bootstrap/
+config/
+modules/

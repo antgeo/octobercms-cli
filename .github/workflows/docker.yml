@@ -3,13 +3,11 @@ name: Build and push Docker image
 on:
   push:
     tags:
-      - '[0-9]+.[0-9]+'
-      - '[0-9]+.[0-9]+.[0-9]+'
-      - '[0-9]+.[0-9]+-php[0-9]+.[0-9]+'
+      - 'php[0-9]+.[0-9]+'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Image tag to build (e.g. 3.5-php8.3)'
+        description: 'Image tag to build (e.g. php8.3)'
         required: true
 
 env:
@@ -44,10 +42,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Three tag patterns:
-      #   1. Full git tag verbatim (e.g. "3.5-php8.3" or "3.5")
-      #   2. Bare version stripped of PHP suffix (e.g. "3.5" from "3.5-php8.3")
-      #   3. "latest" only on tags without a PHP suffix (the default-PHP build)
+      # Two tag patterns:
+      #   1. Full git tag verbatim (e.g. "php8.3")
+      #   2. "latest" always points to the most recently published build
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -56,11 +53,10 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=tag
-            type=match,pattern=(\d+\.\d+)-php.+,group=1
-            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-php') }}
+            type=raw,value=latest
           labels: |
-            org.opencontainers.image.title=OctoberCMS
-            org.opencontainers.image.description=Third-party Docker image for deploying OctoberCMS (not affiliated with OctoberCMS)
+            org.opencontainers.image.title=OctoberCMS Runtime
+            org.opencontainers.image.description=Third-party OctoberCMS runtime image — PHP-FPM + Nginx + s6-overlay (not affiliated with OctoberCMS)
             org.opencontainers.image.vendor=OctoberCMS CLI (third-party)
 
       - name: Build and push
@@ -73,42 +69,17 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # COMPOSER_AUTH secret holds the content of auth.json for the
-          # OctoberCMS gateway. It is mounted only during composer install
-          # and never written to any image layer.
-          secrets: |
-            composer_auth=${{ secrets.COMPOSER_AUTH }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: true
           sbom: true
-
-      # ── Secret leak check ─────────────────────────────────────────────────
-      # Hard failure if any trace of the gateway credential appears in image
-      # history. This catches any accidental inclusion in a layer.
-      - name: Verify no secrets in image layers
-        run: |
-          DIGEST="${{ steps.build.outputs.digest }}"
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
-          docker pull "${IMAGE}"
-          HISTORY=$(docker history --no-trunc "${IMAGE}" 2>&1)
-          if echo "${HISTORY}" | grep -qiE "bearer|gateway\.octobercms\.com"; then
-              echo "ERROR: possible credential found in image history" >&2
-              exit 1
-          fi
-          if docker run --rm --entrypoint sh "${IMAGE}" \
-              -c 'test -f /app/auth.json && echo FOUND || echo ABSENT' \
-              | grep -q FOUND; then
-              echo "ERROR: auth.json found in runtime image" >&2
-              exit 1
-          fi
-          echo "Secret validation passed."
 
       # ── Image size check ──────────────────────────────────────────────────
       - name: Check compressed image size
         run: |
           DIGEST="${{ steps.build.outputs.digest }}"
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
+          docker pull "${IMAGE}"
           SIZE_BYTES=$(docker manifest inspect "${IMAGE}" \
             | jq '[.layers[].size] | add')
           SIZE_MB=$(echo "scale=1; ${SIZE_BYTES}/1024/1024" | bc)

@@ -1,43 +1,18 @@
 # syntax=docker/dockerfile:1.7
 
-# ── Stage 1: Composer vendor ──────────────────────────────────────────────────
-# Requires OctoberCMS gateway credentials.
-# Build the production image with:
-#   DOCKER_BUILDKIT=1 docker build \
-#     --secret id=composer_auth,src=~/.composer/auth.json \
-#     -f docker/Dockerfile -t octobercms:latest .
-FROM composer:2 AS vendor
-
-WORKDIR /app
-
-COPY composer.json ./
-
-# The bind mount on /build-ctx lets us use composer.lock when it exists
-# (reproducible builds) while succeeding on the initial bootstrap run when it
-# has not yet been generated. After the first successful build, extract the
-# generated lock file and commit it so all subsequent builds are pinned.
-RUN --mount=type=bind,source=.,target=/build-ctx \
-    --mount=type=secret,id=composer_auth,target=/app/auth.json,required=false \
-    [ -f /build-ctx/composer.lock ] && cp /build-ctx/composer.lock . || true \
- && composer install \
-      --no-dev \
-      --no-scripts \
-      --prefer-dist \
-      --no-autoloader \
-      --no-interaction \
-      --ansi
-
-COPY . .
-
-RUN composer dump-autoload --optimize --no-dev --no-interaction
-
-# ── Stage 2: Infrastructure base ─────────────────────────────────────────────
-# PHP + Nginx + s6-overlay + all config. No OctoberCMS application code.
-# Can be built without credentials — useful for development and infrastructure
-# testing (generate-env.sh, nginx routing, image structure).
+# OctoberCMS runtime image — PHP 8.3-FPM + Nginx + s6-overlay.
 #
-# Build: docker build --target base -f docker/Dockerfile -t octobercms:base .
-FROM php:8.3-fpm-alpine AS base
+# This image is a runtime environment. It contains no OctoberCMS application
+# code. Users build a derived image on top of this one that COPYs their own
+# vendor/, plugins/, themes/, and application scaffold into /app.
+#
+# Build:
+#   docker build -f docker/Dockerfile -t octobercms:php8.3 .
+#
+# Run (derived image):
+#   docker run -e APP_KEY=... -e APP_URL=... -e DB_HOST=... myapp:latest
+
+FROM php:8.3-fpm-alpine
 
 ARG S6_OVERLAY_VERSION=3.2.2.0
 ARG TARGETARCH
@@ -97,7 +72,7 @@ RUN set -ex \
 # ── rootfs overlay ────────────────────────────────────────────────────────────
 COPY docker/rootfs/ /
 
-# ── Permissions + storage directories ────────────────────────────────────────
+# ── Permissions + writable directories ───────────────────────────────────────
 RUN find /etc/s6-overlay/s6-rc.d -name run -o -name up | xargs chmod +x \
  && chmod +x /etc/s6-overlay/scripts/generate-env.sh \
  && mkdir -p \
@@ -108,9 +83,7 @@ RUN find /etc/s6-overlay/s6-rc.d -name run -o -name up | xargs chmod +x \
         /app/storage/logs \
         /app/plugins \
         /app/themes \
-        /app-skeleton/plugins \
-        /app-skeleton/themes \
- && chown -R www-data:www-data /app/storage /app/plugins /app/themes /app-skeleton \
+ && chown -R www-data:www-data /app \
  && chown -R www-data:www-data /var/lib/nginx /var/log/nginx
 
 WORKDIR /app
@@ -122,22 +95,3 @@ ENTRYPOINT ["/init"]
 
 HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
   CMD curl -f http://localhost/up || exit 1
-
-# ── Stage 3: Production image ─────────────────────────────────────────────────
-# Adds OctoberCMS application code from the vendor stage.
-# This is the default build target.
-FROM base
-
-COPY --from=vendor /app /app
-
-# Move plugins and themes to a skeleton directory so the init script can seed
-# the volume-mounted directories on first run. This allows plugins and themes
-# installed via the OctoberCMS admin UI to persist across deployments.
-RUN mv /app/plugins /app-skeleton/plugins \
- && (mv /app/themes /app-skeleton/themes 2>/dev/null || mkdir -p /app-skeleton/themes) \
- && mkdir -p /app/plugins /app/themes \
- && chown -R www-data:www-data \
-        /app/storage \
-        /app/plugins \
-        /app/themes \
-        /app-skeleton
