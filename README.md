@@ -45,8 +45,8 @@ curl http://localhost/up
 | Tag | PHP version | Use |
 |---|---|---|
 | `octobercms:latest` | 8.3 | Latest stable |
-| `octobercms:3.5` | 8.3 | OctoberCMS 3.5, default PHP |
-| `octobercms:3.5-php8.3` | 8.3 | OctoberCMS 3.5, PHP 8.3 (specific) |
+| `octobercms:4.2` | 8.3 | OctoberCMS 4.2, default PHP |
+| `octobercms:4.2-php8.3` | 8.3 | OctoberCMS 4.2, PHP 8.3 (specific) |
 
 Tags are immutable. `latest` always points to the most recently published stable minor.
 
@@ -101,7 +101,7 @@ Exactly one persistent volume is required:
 
 Everything else in the image is immutable. Plugins and themes are baked into the image at build time via your derived `Dockerfile`, not installed at runtime.
 
-**This contract is permanent.** Once published, `/app/storage` is the writable volume for the life of the `3.x` image series. Any change is a major version bump with a documented migration path.
+**This contract is permanent.** Once published, `/app/storage` is the writable volume for the life of the `4.x` image series. Any change is a major version bump with a documented migration path.
 
 ---
 
@@ -119,7 +119,7 @@ RUN --mount=type=secret,id=composer_auth,target=/app/auth.json,required=true \
 COPY . .
 RUN composer dump-autoload --optimize --no-dev --no-interaction
 
-FROM ghcr.io/octobercms/octobercms:3.5
+FROM ghcr.io/octobercms/octobercms:4.2
 COPY --from=vendor /app/vendor /app/vendor
 COPY plugins/ /app/plugins/
 ```

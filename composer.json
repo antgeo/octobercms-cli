@@ -5,12 +5,12 @@
     "type": "project",
     "require": {
         "php": "^8.3",
-        "october/rain": "^3.5",
-        "october/system": "^3.5",
-        "october/backend": "^3.5",
-        "october/cms": "^3.5",
-        "october/editor": "^3.5",
-        "october/media": "^3.5"
+        "october/rain": "^4.2",
+        "october/system": "^4.2",
+        "october/backend": "^4.2",
+        "october/cms": "^4.2",
+        "october/editor": "^4.2",
+        "october/media": "^4.2"
     },
     "repositories": [
         {
