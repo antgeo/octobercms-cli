@@ -83,7 +83,7 @@ module DockerHelpers
   def http_get(host, port, path)
     uri = URI::HTTP.build(host: host, port: port, path: path)
     Net::HTTP.get_response(uri)
-  rescue Errno::ECONNREFUSED, Errno::ECONNRESET
+  rescue Errno::ECONNREFUSED, Errno::ECONNRESET, EOFError
     nil
   end
 
