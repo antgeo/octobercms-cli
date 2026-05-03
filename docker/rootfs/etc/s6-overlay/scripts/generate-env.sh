@@ -59,3 +59,15 @@ chmod 640 "${ENV_FILE}"
 chown www-data:www-data "${ENV_FILE}"
 
 echo "[generate-env] .env written"
+
+# Generate /app/auth.json from the licence key so the admin UI plugin/theme
+# installer can authenticate with gateway.octobercms.com at runtime.
+# Skipped if auth.json already exists (operator bind-mounted one).
+AUTH_FILE="/app/auth.json"
+if [ -n "${OCTOBER_LICENCE_KEY:-}" ] && [ ! -f "${AUTH_FILE}" ]; then
+    echo "[generate-env] generating auth.json via project:set..."
+    cd /app && php artisan project:set "${OCTOBER_LICENCE_KEY}"
+    chown www-data:www-data "${AUTH_FILE}"
+    chmod 640 "${AUTH_FILE}"
+    echo "[generate-env] auth.json written"
+fi

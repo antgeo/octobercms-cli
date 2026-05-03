@@ -92,6 +92,55 @@ RSpec.describe "generate-env.sh", :integration do
     end
   end
 
+  # ── OCTOBER_LICENCE_KEY / auth.json generation ──────────────────────────────
+
+  # project:set is an artisan command that lives in the user's OctoberCMS project,
+  # not in this runtime image. Tests use a stub artisan that writes a minimal
+  # auth.json so we can verify the generate-env logic without a real install.
+  STUB_ARTISAN = "echo '<?php file_put_contents(\"/app/auth.json\",\"{}\");' > /app/artisan && chmod +x /app/artisan"
+
+  context "OCTOBER_LICENCE_KEY is set" do
+    let(:env_with_key) { DockerHelpers::BASE_ENV.merge("OCTOBER_LICENCE_KEY" => "test-licence-key") }
+
+    it "runs project:set and writes auth.json" do
+      out, _, code = docker_run_sh(
+        "#{STUB_ARTISAN} && #{SCRIPT} && test -f /app/auth.json && echo AUTH_EXISTS",
+        env: env_with_key
+      )
+      expect(code).to eq(0)
+      expect(out).to include("AUTH_EXISTS")
+      expect(out).to include("auth.json written")
+    end
+
+    it "sets auth.json owned by www-data" do
+      out, _, _ = docker_run_sh(
+        "#{STUB_ARTISAN} && #{SCRIPT} >/dev/null 2>&1 && stat -c '%U' /app/auth.json",
+        env: env_with_key
+      )
+      expect(out.strip).to eq("www-data")
+    end
+
+    it "does not overwrite auth.json if it already exists" do
+      out, _, code = docker_run_sh(
+        "#{STUB_ARTISAN} && echo '{\"existing\":true}' > /app/auth.json && #{SCRIPT} && cat /app/auth.json",
+        env: env_with_key
+      )
+      expect(code).to eq(0)
+      expect(out).to include('"existing":true')
+      expect(out).not_to include("auth.json written")
+    end
+  end
+
+  context "OCTOBER_LICENCE_KEY is not set" do
+    it "does not create auth.json" do
+      out, _, _ = docker_run_sh(
+        "#{SCRIPT} >/dev/null 2>&1; test -f /app/auth.json && echo EXISTS || echo ABSENT",
+        env: DockerHelpers::BASE_ENV
+      )
+      expect(out.strip).to eq("ABSENT")
+    end
+  end
+
   # ── Missing required variables ──────────────────────────────────────────────
 
   %w[APP_KEY APP_URL DB_CONNECTION DB_HOST DB_DATABASE DB_USERNAME DB_PASSWORD].each do |var|

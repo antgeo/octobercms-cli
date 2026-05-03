@@ -113,6 +113,7 @@ The entrypoint generates `/app/.env` from environment variables on container sta
 | `MAIL_FROM_NAME` | `OctoberCMS` | |
 | `LOG_CHANNEL` | `stderr` | Logs go to Docker's log driver |
 | `LOG_LEVEL` | `error` | |
+| `OCTOBER_LICENCE_KEY` | _(none)_ | OctoberCMS licence key. When set, `generate-env` runs `php artisan project:set` on startup to write `/app/auth.json`, enabling admin UI plugin/theme installation. Skipped if `/app/auth.json` already exists. |
 
 ---
 
