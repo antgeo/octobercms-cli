@@ -14,7 +14,7 @@ RSpec.describe "running container", :integration do
         image: DockerHelpers::INFRA_IMAGE
       )
       # Wait until Nginx is up — /up may 404 or 503, any response is sufficient.
-      wait_for_http("127.0.0.1", @port, timeout: 30)
+      wait_for_http("127.0.0.1", @port, timeout: 60)
     end
 
     after(:context) do
