@@ -7,7 +7,6 @@ RSpec.describe OctoberCMS::Generators::Secrets do
 
   let(:base_context) do
     {
-      domain:              "example.com",
       db_name:             "october",
       db_username:         "october",
       mysql_accessory:     false,
@@ -22,12 +21,16 @@ RSpec.describe OctoberCMS::Generators::Secrets do
       expect(generator.render).to include("KAMAL_REGISTRY_PASSWORD=")
     end
 
-    it "includes APP_URL with domain" do
-      expect(generator.render).to include("APP_URL=https://example.com")
-    end
-
     it "includes DB_DATABASE" do
       expect(generator.render).to include("DB_DATABASE=october")
+    end
+
+    it "does not include APP_URL (non-secret, belongs in env.clear)" do
+      expect(generator.render).not_to include("APP_URL")
+    end
+
+    it "does not include DB_HOST as a secret variable (belongs in env.clear)" do
+      expect(generator.render).not_to match(/^DB_HOST=/)
     end
 
     context "when october_licence_key is set" do
@@ -50,11 +53,23 @@ RSpec.describe OctoberCMS::Generators::Secrets do
       it "includes MYSQL_ROOT_PASSWORD" do
         expect(described_class.new(ctx).render).to include("MYSQL_ROOT_PASSWORD=")
       end
+
+      it "includes MYSQL_PASSWORD" do
+        expect(described_class.new(ctx).render).to include("MYSQL_PASSWORD=")
+      end
     end
 
     context "without MySQL accessory" do
       it "omits MYSQL_ROOT_PASSWORD" do
         expect(generator.render).not_to include("MYSQL_ROOT_PASSWORD")
+      end
+
+      it "omits MYSQL_PASSWORD" do
+        expect(generator.render).not_to include("MYSQL_PASSWORD=")
+      end
+
+      it "includes a comment about setting DB_HOST externally" do
+        expect(generator.render).to include("DB_HOST")
       end
     end
   end

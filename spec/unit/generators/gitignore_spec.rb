@@ -21,6 +21,10 @@ RSpec.describe OctoberCMS::Generators::Gitignore do
         expect(content).to include(".env")
         expect(content).to include(".kamal/secrets")
       end
+
+      it "returns true" do
+        expect(generator.write(project_dir: tmpdir)).to be true
+      end
     end
 
     context "when .gitignore exists with other content" do
@@ -41,9 +45,13 @@ RSpec.describe OctoberCMS::Generators::Gitignore do
         expect(content).to include("auth.json")
         expect(content).to include(".kamal/secrets")
       end
+
+      it "returns true" do
+        expect(generator.write(project_dir: tmpdir)).to be true
+      end
     end
 
-    context "when .gitignore already contains the required lines" do
+    context "when .gitignore already contains all required lines" do
       before do
         File.write(File.join(tmpdir, ".gitignore"), "auth.json\n.env\n.kamal/secrets\n")
       end
@@ -53,6 +61,10 @@ RSpec.describe OctoberCMS::Generators::Gitignore do
         content = File.read(File.join(tmpdir, ".gitignore"))
         expect(content.scan("auth.json").size).to eq(1)
         expect(content.scan(".kamal/secrets").size).to eq(1)
+      end
+
+      it "returns false" do
+        expect(generator.write(project_dir: tmpdir)).to be false
       end
     end
 

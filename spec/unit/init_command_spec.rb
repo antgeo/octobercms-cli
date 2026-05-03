@@ -54,11 +54,11 @@ RSpec.describe OctoberCMS::Commands::Init do
 
   # ── project detection ──────────────────────────────────────────────────────
 
-  describe "#init — project detection" do
+  describe "#call — project detection" do
     it "errors when composer.json is missing" do
       Dir.chdir(tmpdir) do
         File.write(File.join(tmpdir, "artisan"), "")
-        result = run { described_class.new([], {}).init }
+        result = run { described_class.new.call }
         expect(result[:code]).to eq(1)
         expect(result[:err]).to include("No OctoberCMS project found")
         expect(result[:err]).to include("composer.json")
@@ -68,7 +68,7 @@ RSpec.describe OctoberCMS::Commands::Init do
     it "errors when artisan is missing" do
       Dir.chdir(tmpdir) do
         File.write(File.join(tmpdir, "composer.json"), "{}")
-        result = run { described_class.new([], {}).init }
+        result = run { described_class.new.call }
         expect(result[:code]).to eq(1)
         expect(result[:err]).to include("artisan")
       end
@@ -76,7 +76,7 @@ RSpec.describe OctoberCMS::Commands::Init do
 
     it "errors when both files are missing" do
       Dir.chdir(tmpdir) do
-        result = run { described_class.new([], {}).init }
+        result = run { described_class.new.call }
         expect(result[:code]).to eq(1)
         expect(result[:err]).to include("No OctoberCMS project found")
       end
@@ -85,7 +85,7 @@ RSpec.describe OctoberCMS::Commands::Init do
 
   # ── licence key resolution ─────────────────────────────────────────────────
 
-  describe "#init — licence key resolution" do
+  describe "#call — licence key resolution" do
     before do
       File.write(File.join(tmpdir, "composer.json"), "{}")
       File.write(File.join(tmpdir, "artisan"), "")
@@ -103,7 +103,7 @@ RSpec.describe OctoberCMS::Commands::Init do
 
       it "notes the env var and does not store to project" do
         Dir.chdir(tmpdir) do
-          result = run { described_class.new([], {}).init }
+          result = run { described_class.new.call }
           expect(result[:out]).to include("OCTOBER_LICENCE_KEY env var")
           expect(OctoberCMS::Services::AuthStore).not_to have_received(:store_project)
         end
@@ -113,7 +113,7 @@ RSpec.describe OctoberCMS::Commands::Init do
     context "when key source is :project" do
       it "notes the key is already set" do
         Dir.chdir(tmpdir) do
-          result = run { described_class.new([], {}).init }
+          result = run { described_class.new.call }
           expect(result[:out]).to include("already set for this project")
         end
       end
@@ -130,7 +130,7 @@ RSpec.describe OctoberCMS::Commands::Init do
 
       it "calls store_project with the key" do
         Dir.chdir(tmpdir) do
-          run { described_class.new([], {}).init }
+          run { described_class.new.call }
           expect(OctoberCMS::Services::AuthStore).to have_received(:store_project)
             .with("global-key", project_dir: File.realpath(tmpdir))
         end
@@ -147,7 +147,7 @@ RSpec.describe OctoberCMS::Commands::Init do
 
       it "does not call store_project" do
         Dir.chdir(tmpdir) do
-          run { described_class.new([], {}).init }
+          run { described_class.new.call }
           expect(OctoberCMS::Services::AuthStore).not_to have_received(:store_project)
         end
       end
@@ -161,9 +161,16 @@ RSpec.describe OctoberCMS::Commands::Init do
 
       it "calls run_auth_setup" do
         Dir.chdir(tmpdir) do
-          cmd = described_class.new([], {})
-          run { cmd.init }
+          cmd = described_class.new
+          run { cmd.call }
           expect(cmd).to have_received(:run_auth_setup)
+        end
+      end
+
+      it "warns when key is still nil after auth setup" do
+        Dir.chdir(tmpdir) do
+          result = run { described_class.new.call }
+          expect(result[:err]).to include("Warning: no licence key configured")
         end
       end
     end
@@ -171,32 +178,34 @@ RSpec.describe OctoberCMS::Commands::Init do
 
   # ── file generation ────────────────────────────────────────────────────────
 
-  describe "#init — file generation" do
+  describe "#call — file generation" do
     before do
       File.write(File.join(tmpdir, "composer.json"), "{}")
       File.write(File.join(tmpdir, "artisan"), "")
       stub_prompts_with_full_context
     end
 
-    it "creates all five output files" do
+    it "creates all six output files" do
       Dir.chdir(tmpdir) do
-        run { described_class.new([], {}).init }
+        run { described_class.new.call }
         expect(File.exist?(File.join(tmpdir, "Dockerfile"))).to be true
         expect(File.exist?(File.join(tmpdir, "config", "deploy.yml"))).to be true
         expect(File.exist?(File.join(tmpdir, ".kamal", "secrets"))).to be true
         expect(File.exist?(File.join(tmpdir, ".env.example"))).to be true
         expect(File.exist?(File.join(tmpdir, ".gitignore"))).to be true
+        expect(File.exist?(File.join(tmpdir, ".dockerignore"))).to be true
       end
     end
 
     it "prints create/update lines for each file" do
       Dir.chdir(tmpdir) do
-        result = run { described_class.new([], {}).init }
+        result = run { described_class.new.call }
         expect(result[:out]).to include("create  Dockerfile")
         expect(result[:out]).to include("create  config/deploy.yml")
         expect(result[:out]).to include("create  .kamal/secrets")
         expect(result[:out]).to include("create  .env.example")
         expect(result[:out]).to include("update  .gitignore")
+        expect(result[:out]).to include("update  .dockerignore")
       end
     end
 
@@ -204,7 +213,7 @@ RSpec.describe OctoberCMS::Commands::Init do
       it "skips without prompting" do
         Dir.chdir(tmpdir) do
           File.write(File.join(tmpdir, "Dockerfile"), "existing")
-          result = run { described_class.new([], { "skip_existing" => true }).init }
+          result = run { described_class.new(skip_existing: true).call }
           expect(result[:out]).to include("skip    Dockerfile")
           expect(File.read(File.join(tmpdir, "Dockerfile"))).to eq("existing")
         end
@@ -221,7 +230,7 @@ RSpec.describe OctoberCMS::Commands::Init do
       it "skips the file" do
         Dir.chdir(tmpdir) do
           File.write(File.join(tmpdir, "Dockerfile"), "existing")
-          result = run { described_class.new([], {}).init }
+          result = run { described_class.new.call }
           expect(result[:out]).to include("skip    Dockerfile")
           expect(File.read(File.join(tmpdir, "Dockerfile"))).to eq("existing")
         end
@@ -238,8 +247,60 @@ RSpec.describe OctoberCMS::Commands::Init do
       it "overwrites the file" do
         Dir.chdir(tmpdir) do
           File.write(File.join(tmpdir, "Dockerfile"), "old content")
-          run { described_class.new([], {}).init }
+          run { described_class.new.call }
           expect(File.read(File.join(tmpdir, "Dockerfile"))).to include("ghcr.io/antgeo/octobercms")
+        end
+      end
+    end
+
+    context "when multiple server IPs are provided" do
+      before do
+        call_count = 0
+        allow(prompt).to receive(:ask) do |msg, **_opts|
+          case msg
+          when /App name/          then "my-site"
+          when /Registry username/ then "org"
+          when /Docker image/      then "ghcr.io/org/my-site"
+          when /Server IP/         then "1.2.3.4"
+          when /Another server/
+            call_count += 1
+            call_count == 1 ? "5.6.7.8" : ""
+          when /Domain/            then "example.com"
+          when /Database name/     then "october"
+          when /Database username/ then "october"
+          end
+        end
+        allow(prompt).to receive(:select) do |msg, _choices|
+          case msg
+          when /registry/i then "GitHub Container Registry (ghcr.io)"
+          when /Database/  then "Built-in MySQL accessory"
+          end
+        end
+        allow(prompt).to receive(:yes?).and_return(false)
+      end
+
+      it "includes all server IPs in deploy.yml" do
+        Dir.chdir(tmpdir) do
+          run { described_class.new.call }
+          content = File.read(File.join(tmpdir, "config", "deploy.yml"))
+          expect(content).to include("1.2.3.4")
+          expect(content).to include("5.6.7.8")
+        end
+      end
+    end
+
+    context "when .gitignore and .dockerignore already contain all required lines" do
+      before do
+        File.write(File.join(tmpdir, ".gitignore"), "auth.json\n.env\n.kamal/secrets\n")
+        File.write(File.join(tmpdir, ".dockerignore"),
+                   ".git\n.gitignore\n.env\nauth.json\n.kamal/secrets\nvendor\n")
+      end
+
+      it "prints skip for both ignore files" do
+        Dir.chdir(tmpdir) do
+          result = run { described_class.new.call }
+          expect(result[:out]).to include("skip    .gitignore")
+          expect(result[:out]).to include("skip    .dockerignore")
         end
       end
     end
@@ -248,7 +309,6 @@ RSpec.describe OctoberCMS::Commands::Init do
   private
 
   def stub_prompts_with_full_context
-    # Use a block to handle varying argument signatures across TTY::Prompt calls
     allow(prompt).to receive(:ask) do |msg, **_opts|
       case msg
       when /App name/          then "my-site"

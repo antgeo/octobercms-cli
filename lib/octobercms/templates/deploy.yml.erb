@@ -23,18 +23,24 @@ builder:
   secrets:
     - OCTOBER_LICENCE_KEY
 
+volumes:
+  - /app/storage:/app/storage
+  - /app/plugins:/app/plugins
+  - /app/themes:/app/themes
+
 env:
   clear:
     APP_ENV: production
     APP_DEBUG: "false"
+    APP_URL: https://<%= domain %>
+<% if mysql_accessory -%>
+    DB_HOST: 127.0.0.1
+<% end -%>
   secret:
     - APP_KEY
-    - APP_URL
-    - DB_HOST
     - DB_DATABASE
     - DB_USERNAME
     - DB_PASSWORD
-    - OCTOBER_LICENCE_KEY
 <% if mysql_accessory -%>
 
 accessories:
@@ -45,9 +51,10 @@ accessories:
     env:
       clear:
         MYSQL_DATABASE: <%= db_name %>
+        MYSQL_USER: <%= db_username %>
       secret:
         - MYSQL_ROOT_PASSWORD
-        - DB_PASSWORD
+        - MYSQL_PASSWORD
     volumes:
       - /var/mysql/data:/var/lib/mysql
 <% end -%>

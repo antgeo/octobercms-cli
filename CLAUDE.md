@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**M1 (Docker runtime image) is complete. M2 (licence key management) is complete.** M3 (gem skeleton + `init` command) is next.
+**M1 (Docker runtime image), M2 (licence key management), and M3 (`init` command + file generators) are complete.** M4 (deploy command pipeline) is next.
 
 ## What this project is
 
@@ -19,13 +19,15 @@ Three artifacts together form the product:
 
 ## The Docker image (M1 — complete)
 
-The image is a **runtime environment only**. It contains no OctoberCMS application code. Users build a derived image:
+The image is a **runtime environment only**. It contains no OctoberCMS application code. `octobercms init` generates a `Dockerfile` into the user's project:
 
 ```dockerfile
+# syntax=docker/dockerfile:1.7
 FROM composer:2 AS vendor
 WORKDIR /app
 COPY composer.json composer.lock ./
-RUN --mount=type=secret,id=composer_auth,target=/app/auth.json,required=true \
+RUN --mount=type=secret,id=OCTOBER_LICENCE_KEY \
+    COMPOSER_AUTH="{\"http-basic\":{\"gateway.octobercms.com\":{\"username\":\"octobercms\",\"password\":\"$(cat /run/secrets/OCTOBER_LICENCE_KEY)\"}}}" \
     composer install --no-dev --no-scripts --prefer-dist --no-autoloader --no-interaction
 COPY . .
 RUN composer dump-autoload --optimize --no-dev --no-interaction
@@ -34,6 +36,8 @@ FROM ghcr.io/antgeo/octobercms:php8.3
 COPY --from=vendor /app /app
 RUN chown -R www-data:www-data /app
 ```
+
+`OCTOBER_LICENCE_KEY` is passed from `.kamal/secrets` by Kamal as a BuildKit secret via `builder.secrets` in `config/deploy.yml`. `COMPOSER_AUTH` injects it into Composer only during the install step — it never enters image layers.
 
 Image tags encode the PHP version, not the OctoberCMS version:
 - `ghcr.io/antgeo/octobercms:php8.3`
@@ -76,22 +80,67 @@ generate-env (oneshot) → php-fpm (longrun) → nginx (longrun)
 
 s6-overlay v3 supervises PHP-FPM and Nginx. `generate-env` writes `/app/.env` from environment variables before PHP starts. If `/app/.env` already exists (bind-mounted or baked in), it is left untouched. Nginx waits for the PHP-FPM Unix socket (`/run/php-fpm.sock`) before accepting connections.
 
-## Gem structure (M2 — implemented)
+## Gem structure (M3 — current)
 
 ```
 bin/octobercms               # CLI entrypoint
 lib/octobercms/
-  cli.rb                     # Thor command tree root
-  version.rb
+  cli.rb                     # Thor command tree root — auth subcommand + init method
+  version.rb                 # 0.1.0
   commands/
-    auth.rb                  # auth setup / status / remove
+    auth.rb                  # auth setup / status / remove (Thor subclass)
+    init.rb                  # octobercms init (plain Ruby class, call via CLI)
+  generators/
+    base.rb                  # render_template (ERB) + atomic write_file helpers
+    dockerfile.rb            # renders Dockerfile.erb
+    deploy_yml.rb            # renders deploy.yml.erb → config/deploy.yml
+    secrets.rb               # renders secrets.erb → .kamal/secrets (mode 0600)
+    env_example.rb           # renders env.example.erb → .env.example
+    gitignore.rb             # append-only: auth.json, .env, .kamal/secrets
+    dockerignore.rb          # append-only: .git, .gitignore, .env, auth.json, .kamal/secrets, vendor
   services/
     auth_store.rb            # credential resolution + storage
+  templates/
+    Dockerfile.erb
+    deploy.yml.erb
+    secrets.erb
+    env.example.erb
 spec/
   unit/
     auth_commands_spec.rb    # 38 tests for auth commands
     auth_store_spec.rb       # 16 tests for AuthStore
+    init_command_spec.rb     # 17 tests for Init
+    generators/
+      dockerfile_spec.rb
+      deploy_yml_spec.rb
+      secrets_spec.rb
+      env_example_spec.rb
+      gitignore_spec.rb
+      dockerignore_spec.rb
 ```
+
+### Commands::Init — plain Ruby class pattern
+
+`init.rb` is a plain Ruby class (not a Thor subclass) with `initialize(options={})` and `call`. It is registered directly as a method on `CLI < Thor`:
+
+```ruby
+def init
+  Commands::Init.new(skip_existing: options[:skip_existing]).call
+end
+```
+
+This eliminates Thor's `subcommand + default_task` pattern and the associated test noise. `Thor::Error` is still raised for user-facing errors since `CLI` catches it.
+
+### octobercms init — what it does
+
+1. Detects `composer.json` + `artisan` in cwd (errors if absent)
+2. Resolves licence key via `AuthStore` — prompts for copy/setup if needed
+3. Prompts: app name, registry, image, server IPs, domain, database type
+4. Generates 6 files (create/skip/overwrite with prompts):
+   - `Dockerfile`, `config/deploy.yml`, `.kamal/secrets`, `.env.example`
+   - `.gitignore` (append-only), `.dockerignore` (append-only)
+
+`--skip-existing` skips existing files without prompting.
 
 ### auth_store.rb — credential resolution order
 
@@ -109,28 +158,29 @@ File writes are atomic: write to `.tmp` → `chmod 0600` → rename. Keys in `.k
 
 ### Key gem dependencies
 
-- **Thor** (`~> 1.3`) — command tree; `raise Thor::Error` for user-facing errors
+- **Thor** (`~> 1.3`) — command tree; `raise Thor::Error` for user-facing errors; `Commands::Init` is a plain Ruby class registered on `CLI`, not a Thor subclass
 - **tty-prompt** (`~> 0.23`) — masked key input, yes/no confirms, select menus
 - **tty-command, tty-logger** (`~> 0.10`, `~> 0.6`) — reserved for M4 deploy pipeline
-- **Net::HTTP** (stdlib) — gateway validation; no extra HTTP gem dependency in M2
+- **kamal** (`~> 2.0`) — deploy engine; called via tty-command in M4+
+- **Net::HTTP** (stdlib) — gateway validation; no extra HTTP gem dependency
 
 ### Running gem tests
 
 ```sh
 bundle exec rspec spec/unit/auth_store_spec.rb
 bundle exec rspec spec/unit/auth_commands_spec.rb
-bundle exec rspec --tag '~integration'  # all unit tests
+bundle exec rspec spec/unit/init_command_spec.rb
+bundle exec rspec spec/unit/generators/
+bundle exec rspec --tag '~integration'  # all unit tests (148 examples)
 ```
 
-## Planned gem additions (M3+)
+## M4+ planned additions
 
 ```
 lib/octobercms/commands/
-  init.rb / deploy.rb / plugin.rb / backup.rb / doctor.rb
-lib/octobercms/generators/   # ERB template renderers
+  deploy.rb / plugin.rb / backup.rb / doctor.rb
 lib/octobercms/services/
   kamal.rb / composer.rb / docker.rb / api_client.rb
-lib/octobercms/templates/    # Dockerfile, deploy.yml, etc.
 ```
 
 Commands are thin (parsing, prompting, dispatching). Logic lives in services and generators.
@@ -140,7 +190,7 @@ Commands are thin (parsing, prompting, dispatching). Logic lives in services and
 `octobercms deploy` pipeline (run inside the user's OctoberCMS project repo):
 
 1. **Pre-flight** — auth state, licence health, composer.lock validity
-2. **Build** — fetches licence key from OctoberCMS API → writes temp `auth.json` → `docker build DOCKER_BUILDKIT=1 --secret id=composer_auth,src=<temp>` against the user's `Dockerfile` (which derives FROM the runtime image) → deletes temp file in `begin/ensure`
+2. **Build** — Kamal reads `OCTOBER_LICENCE_KEY` from `.kamal/secrets` and passes it to `docker build` as a BuildKit secret; the generated `Dockerfile` uses it via `COMPOSER_AUTH` during `composer install` only — never enters image layers
 3. **Push** — `kamal registry login && docker push`
 4. **Migrate** — one-shot container runs `php artisan october:migrate` **before** rolling deploy
 5. **Deploy** — `kamal deploy` (rolling restart via `/up` health check)
@@ -156,10 +206,13 @@ Each step is also its own subcommand (`octobercms build`, `octobercms migrate`, 
 - CI uses `OCTOBER_API_TOKEN` env var instead
 - Token grants read access to Project Licences only; never logged or displayed
 
-**Licence credential flow:**
-- `init` stores only the Project ID in `.kamal/project` (committable, not secret)
-- At build time, licence key is fetched from API per-build, injected via BuildKit secret mount, **never persisted** in the project directory or image layers
+**Licence credential flow (M3 implementation):**
+- `init` asks for the licence key and stores it in `.kamal/secrets` (mode `0600`, gitignored) as `OCTOBER_LICENCE_KEY="value"`
+- `config/deploy.yml` references it under `builder.secrets`; Kamal passes it to `docker build` as a BuildKit secret
+- The generated `Dockerfile` reads it via `COMPOSER_AUTH` env var during `composer install` only — it never enters image layers or the running container
 - Runtime container has no licence credentials
+
+_Planned (M5+): the CLI will fetch the licence key from the OctoberCMS API at build time using an account token (OAuth flow), eliminating manual key entry._
 
 **Never log or display the licence key or account token under any circumstance, including `--verbose` mode.** Redact any matching pattern from all output.
 

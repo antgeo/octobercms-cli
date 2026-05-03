@@ -2,10 +2,10 @@
 FROM composer:2 AS vendor
 WORKDIR /app
 COPY composer.json composer.lock ./
-COPY . .
 RUN --mount=type=secret,id=OCTOBER_LICENCE_KEY \
-    php artisan project:set "$(cat /run/secrets/OCTOBER_LICENCE_KEY)" && \
+    COMPOSER_AUTH="{\"http-basic\":{\"gateway.octobercms.com\":{\"username\":\"octobercms\",\"password\":\"$(cat /run/secrets/OCTOBER_LICENCE_KEY)\"}}}" \
     composer install --no-dev --no-scripts --prefer-dist --no-autoloader --no-interaction
+COPY . .
 RUN composer dump-autoload --optimize --no-dev --no-interaction
 
 FROM ghcr.io/antgeo/octobercms:php8.3

@@ -7,15 +7,15 @@ RSpec.describe OctoberCMS::Generators::DeployYml do
 
   let(:base_context) do
     {
-      service:           "my-site",
-      image:             "ghcr.io/org/my-site",
-      servers:           ["1.2.3.4"],
-      domain:            "example.com",
-      registry_server:   "ghcr.io",
-      registry_username: "org",
-      mysql_accessory:   false,
-      db_name:           "october",
-      db_username:       "october",
+      service:             "my-site",
+      image:               "ghcr.io/org/my-site",
+      servers:             ["1.2.3.4"],
+      domain:              "example.com",
+      registry_server:     "ghcr.io",
+      registry_username:   "org",
+      mysql_accessory:     false,
+      db_name:             "october",
+      db_username:         "october",
       october_licence_key: nil,
     }
   end
@@ -52,20 +52,51 @@ RSpec.describe OctoberCMS::Generators::DeployYml do
       expect(generator.render).to include("secrets:\n    - OCTOBER_LICENCE_KEY")
     end
 
-    it "includes OCTOBER_LICENCE_KEY in env.secret" do
-      expect(generator.render).to include("- OCTOBER_LICENCE_KEY")
+    it "does not include OCTOBER_LICENCE_KEY in env.secret" do
+      # licence key must not be injected into the running container
+      env_section = generator.render.split("env:").last
+      expect(env_section).not_to include("OCTOBER_LICENCE_KEY")
+    end
+
+    it "includes persistent volume mounts" do
+      rendered = generator.render
+      expect(rendered).to include("/app/storage:/app/storage")
+      expect(rendered).to include("/app/plugins:/app/plugins")
+      expect(rendered).to include("/app/themes:/app/themes")
+    end
+
+    it "includes APP_URL in env.clear" do
+      expect(generator.render).to include("APP_URL: https://example.com")
+    end
+
+    it "sets DB_HOST in env.clear when using MySQL accessory" do
+      ctx = base_context.merge(mysql_accessory: true)
+      expect(described_class.new(ctx).render).to include("DB_HOST: 127.0.0.1")
+    end
+
+    it "omits DB_HOST for external database" do
+      expect(generator.render).not_to include("DB_HOST")
     end
 
     context "with MySQL accessory" do
       let(:ctx) { base_context.merge(mysql_accessory: true) }
 
       it "includes the accessories block" do
-        expect(described_class.new(ctx).render).to include("accessories:")
-        expect(described_class.new(ctx).render).to include("image: mysql:8.0")
+        rendered = described_class.new(ctx).render
+        expect(rendered).to include("accessories:")
+        expect(rendered).to include("image: mysql:8.0")
       end
 
       it "sets MYSQL_DATABASE to db_name" do
         expect(described_class.new(ctx).render).to include("MYSQL_DATABASE: october")
+      end
+
+      it "sets MYSQL_USER in env.clear for non-root user creation" do
+        expect(described_class.new(ctx).render).to include("MYSQL_USER: october")
+      end
+
+      it "includes MYSQL_PASSWORD in env.secret" do
+        expect(described_class.new(ctx).render).to include("- MYSQL_PASSWORD")
       end
     end
 

@@ -16,13 +16,21 @@ RSpec.describe OctoberCMS::Generators::Dockerfile do
       expect(generator.render).to include("--mount=type=secret,id=OCTOBER_LICENCE_KEY")
     end
 
-    it "runs project:set with the secret" do
-      expect(generator.render).to include("php artisan project:set")
+    it "passes credentials via COMPOSER_AUTH env var" do
+      expect(generator.render).to include("COMPOSER_AUTH=")
+      expect(generator.render).to include("gateway.octobercms.com")
       expect(generator.render).to include("/run/secrets/OCTOBER_LICENCE_KEY")
     end
 
     it "runs composer install" do
       expect(generator.render).to include("composer install --no-dev")
+    end
+
+    it "copies application files after composer install to preserve layer cache" do
+      content = generator.render
+      install_pos = content.index("composer install")
+      copy_pos    = content.index("COPY . .")
+      expect(copy_pos).to be > install_pos
     end
 
     it "uses the dockerfile:1.7 syntax directive" do

@@ -14,9 +14,14 @@ module OctoberCMS
       def write_file(path, content, mode: 0o644)
         FileUtils.mkdir_p(File.dirname(path))
         tmp = "#{path}.tmp"
-        File.write(tmp, content)
-        File.chmod(mode, tmp)
-        File.rename(tmp, path)
+        begin
+          File.write(tmp, content)
+          File.chmod(mode, tmp)
+          File.rename(tmp, path)
+        rescue
+          File.delete(tmp) if File.exist?(tmp)
+          raise
+        end
       end
     end
   end

@@ -1,13 +1,13 @@
 module OctoberCMS
   module Generators
-    class Gitignore
-      LINES = %w[auth.json .env .kamal/secrets].freeze
+    class Dockerignore
+      LINES = %w[.git .gitignore .env auth.json .kamal/secrets vendor].freeze
 
       def initialize(_context = {})
       end
 
       def write(project_dir: Dir.pwd)
-        path = File.join(project_dir, ".gitignore")
+        path = File.join(project_dir, ".dockerignore")
         existing = File.exist?(path) ? File.read(path) : ""
         additions = LINES.reject { |l| existing.lines.any? { |el| el.chomp == l } }
         return false if additions.empty?

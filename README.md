@@ -4,7 +4,7 @@
 
 A Ruby gem and Docker image that make deploying OctoberCMS a single-command operation against any Linux server. Built on [Kamal](https://kamal-deploy.org) as the deployment engine.
 
-> **Status:** M1 complete ✓ — M2 complete ✓ (`auth` command set, licence key management) — M3 next.
+> **Status:** M1 complete ✓ — M2 complete ✓ (`auth` command set, licence key management) — M3 complete ✓ (`init` command, deployment scaffolding) — M4 next (`deploy` pipeline).
 
 ---
 
@@ -13,7 +13,7 @@ A Ruby gem and Docker image that make deploying OctoberCMS a single-command oper
 The `octobercms` gem wraps [Kamal](https://kamal-deploy.org) as the deployment engine and adds OctoberCMS-aware scaffolding and lifecycle commands. Ruby 3.2+ required.
 
 ```sh
-gem install octobercms   # coming in v0.1.0 — see below for building from source
+gem install octobercms   # v0.1.0 — see below for building from source
 ```
 
 ### Building from source
@@ -66,6 +66,33 @@ octobercms auth remove --global  # always removes the global key
 ### CI usage
 
 Set `OCTOBER_LICENCE_KEY` as a repository secret. The CLI reads it automatically — no `auth setup` step needed in CI.
+
+---
+
+## Scaffold your deployment
+
+Inside your OctoberCMS project directory (must contain `composer.json` and `artisan`):
+
+```sh
+octobercms init
+```
+
+Walks you through your deployment configuration, then generates:
+
+| File | Description |
+|------|-------------|
+| `Dockerfile` | Multi-stage build; injects your licence key via BuildKit secret |
+| `config/deploy.yml` | Kamal config: servers, registry, proxy (TLS), volumes, database |
+| `.kamal/secrets` | Secret env var values — mode `0600`, gitignored |
+| `.env.example` | Runtime env var reference — safe to commit |
+| `.gitignore` | Adds `auth.json`, `.env`, `.kamal/secrets` |
+| `.dockerignore` | Adds `.git`, `vendor`, `.env`, `.kamal/secrets` |
+
+On re-run, existing files prompt for overwrite confirmation. Pass `--skip-existing` to skip them silently.
+
+```sh
+octobercms init --skip-existing
+```
 
 ---
 

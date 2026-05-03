@@ -15,14 +15,15 @@ Tags encode the PHP version, not the OctoberCMS version. OctoberCMS version is d
 
 ## Building your app image
 
-In your OctoberCMS project, create a `Dockerfile`:
+Run `octobercms init` inside your OctoberCMS project to generate all deployment files automatically, including the `Dockerfile`. The generated file:
 
 ```dockerfile
 # syntax=docker/dockerfile:1.7
 FROM composer:2 AS vendor
 WORKDIR /app
 COPY composer.json composer.lock ./
-RUN --mount=type=secret,id=composer_auth,target=/app/auth.json,required=true \
+RUN --mount=type=secret,id=OCTOBER_LICENCE_KEY \
+    COMPOSER_AUTH="{\"http-basic\":{\"gateway.octobercms.com\":{\"username\":\"octobercms\",\"password\":\"$(cat /run/secrets/OCTOBER_LICENCE_KEY)\"}}}" \
     composer install --no-dev --no-scripts --prefer-dist --no-autoloader --no-interaction
 COPY . .
 RUN composer dump-autoload --optimize --no-dev --no-interaction
@@ -32,15 +33,15 @@ COPY --from=vendor /app /app
 RUN chown -R www-data:www-data /app
 ```
 
-Build with your OctoberCMS gateway credential:
+`OCTOBER_LICENCE_KEY` is passed by Kamal from `.kamal/secrets` via `builder.secrets` in `config/deploy.yml`. To build manually:
 
 ```sh
 DOCKER_BUILDKIT=1 docker build \
-  --secret id=composer_auth,src=$HOME/.composer/auth.json \
+  --secret id=OCTOBER_LICENCE_KEY,env=OCTOBER_LICENCE_KEY \
   -t my-org/my-site:latest .
 ```
 
-The `composer_auth` secret is mounted only during `composer install` and is never written to any image layer.
+The licence key is mounted only during the `composer install` step and is never written to any image layer.
 
 ---
 
