@@ -4,7 +4,7 @@
 
 A Ruby gem and Docker image that make deploying OctoberCMS a single-command operation against any Linux server. Built on [Kamal](https://kamal-deploy.org) as the deployment engine.
 
-> **Status:** M1 (Docker runtime image) — the gem is in development.
+> **Status:** M1 complete ✓ — the gem is in development (M2 next).
 
 ---
 
@@ -132,13 +132,14 @@ One persistent volume is required:
 
 ## Process model
 
-The container runs Nginx and PHP-FPM supervised by [s6-overlay](https://github.com/just-containers/s6-overlay) v3. Startup order:
+The container runs Nginx, PHP-FPM, and a task scheduler supervised by [s6-overlay](https://github.com/just-containers/s6-overlay) v3. Startup order:
 
 ```
 generate-env (oneshot) → php-fpm (longrun) → nginx (longrun)
+                       ↘ scheduler (longrun)
 ```
 
-`generate-env` writes `/app/.env` from environment variables before PHP starts. Nginx waits for the PHP-FPM Unix socket before accepting connections.
+`generate-env` writes `/app/.env` from environment variables before PHP starts. Nginx waits for the PHP-FPM Unix socket before accepting connections. The scheduler runs `php artisan schedule:run` every minute via `crond`, as `www-data`.
 
 ---
 

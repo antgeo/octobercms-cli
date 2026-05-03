@@ -84,12 +84,13 @@ A single-container model is the right choice for the self-hoster CLI. Two contai
 
 #### Volume contract
 
-Exactly two writable surfaces:
+One required persistent volume and two optional ones:
 
-- `/app/storage` — uploads, generated thumbs, logs, cache, sessions. Everything user-generated and writable.
-- `/app/plugins` and `/app/themes` — installable content. Baked into the customer's derived image at build time; mountable as a volume only as an explicit escape hatch.
+- `/app/storage` — uploads, generated thumbs, logs, cache, sessions. Everything user-generated and writable. **Required.**
+- `/app/plugins` — writable by `www-data` for admin UI plugin installation. Mount as a volume if you want admin-installed plugins to survive redeployments.
+- `/app/themes` — writable by `www-data` for admin UI theme installation. Mount as a volume if you want admin-installed themes to survive redeployments.
 
-Everything else — core code, vendor, config templates — is immutable in the image. This breaks from traditional OctoberCMS installs where everything is one writable directory, and the break is intentional. Atomic deploys, testable images, and clean rollbacks all depend on it.
+Everything else — core code, vendor, config — is immutable in the image. This breaks from traditional OctoberCMS installs where everything is one writable directory, and the break is intentional. Atomic deploys, testable images, and clean rollbacks all depend on it.
 
 The volume contract is part of the public API of the image. Changes to it require a major version bump and a documented migration path.
 
@@ -124,16 +125,15 @@ This mirrors Rails 7+ convention. Without a real health check, Kamal's "rolling 
 
 #### Image versioning
 
-Tags follow the pattern `octobercms:<cms-version>-php<php-version>`:
+Tags encode the PHP version, not the OctoberCMS version. OctoberCMS version is determined by the user's own `composer.json` in their derived image.
 
-- `octobercms:3.5-php8.3` (specific)
-- `octobercms:3.5` (default PHP for that CMS version)
-- `octobercms:latest` (latest stable)
+- `ghcr.io/antgeo/octobercms:php8.3` (specific PHP version)
+- `ghcr.io/antgeo/octobercms:latest` (latest published runtime)
 
 We commit to:
-- Two PHP versions supported per CMS version (current stable + previous stable)
-- Security patches within 72 hours of upstream release
-- A 12-month support window for each minor CMS version
+- A new tag per supported PHP version (e.g. `php8.4` when that ships)
+- Security patches within 72 hours of upstream Alpine/PHP release
+- The volume contract and env var schema are permanent public API — changes require a major version bump
 
 #### Plugin and theme installation strategy
 
@@ -145,38 +145,33 @@ Two viable approaches; we ship one as primary and one as escape hatch.
 
 The strategic implication of build-time as primary: the **plugin distribution path is Composer**. Plugins not on Packagist need to be added via local paths (a `plugins/` directory in the project that's COPYed into the image at build) or via custom Composer repositories. We ship a curated index of the top OctoberCMS plugins mapping friendly names to Packagist packages, falling back to direct Packagist lookup for anything not in the index. v2 may add a private Packagist (`satis`) for the platform-blessed plugin set.
 
-#### Dockerfile sketch
+#### Dockerfile
+
+The runtime image is a single-stage build — no OctoberCMS code is included. Users build a derived image on top of it:
 
 ```dockerfile
+# Runtime image (this repo — ghcr.io/antgeo/octobercms:php8.3)
+FROM php:8.3-fpm-alpine
+# PHP extensions, Nginx, s6-overlay, crond — no application code
+
+# User's derived image (their OctoberCMS project repo)
 # syntax=docker/dockerfile:1.7
-# Stage 1: composer dependencies
 FROM composer:2 AS vendor
 WORKDIR /app
 COPY composer.json composer.lock ./
-# BuildKit secret mount: auth.json is provided at build time only,
-# never written to the image layer or persisted in the build cache.
 RUN --mount=type=secret,id=composer_auth,target=/app/auth.json,required=true \
-    composer install --no-dev --no-scripts --prefer-dist --no-autoloader
+    composer install --no-dev --no-scripts --prefer-dist --no-autoloader --no-interaction
 COPY . .
-RUN composer dump-autoload --optimize --no-dev
+RUN composer dump-autoload --optimize --no-dev --no-interaction
 
-# Stage 2: runtime
-FROM php:8.3-fpm-alpine
-RUN apk add --no-cache nginx s6-overlay mysql-client curl \
-    && docker-php-ext-install pdo_mysql gd opcache bcmath \
-    && docker-php-ext-enable opcache
+FROM ghcr.io/antgeo/octobercms:php8.3
 COPY --from=vendor /app /app
-COPY rootfs/ /
-WORKDIR /app
-EXPOSE 80
-HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
-  CMD curl -f http://localhost/up || exit 1
-ENTRYPOINT ["/init"]
+RUN chown -R www-data:www-data /app
 ```
 
-The `# syntax` directive enables BuildKit's secret-mount feature. The `auth.json` file containing OctoberCMS Project License credentials is mounted into `/app/auth.json` only for the duration of the `composer install` step, then disappears — it never becomes part of the published image. This is verified in CI by inspecting `docker history` and grepping for any trace of the licence key.
+The `auth.json` file containing OctoberCMS Project License credentials is mounted into the vendor stage only for the duration of `composer install`, then disappears — it never enters the runtime image. This is verified in the user's CI by inspecting `docker history`.
 
-The `rootfs/` directory contains s6 service definitions, nginx config, php-fpm config, and the entrypoint script. This pattern is well-trodden in the linuxserver.io image set.
+The `docker/rootfs/` directory in this repo contains s6 service definitions, nginx config, php-fpm config, opcache config, and the generate-env entrypoint script.
 
 ### The Ruby gem
 
