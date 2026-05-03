@@ -67,11 +67,16 @@ The image is the long-term commitment, so it ships first and gets the most revie
 
 **Exit criteria:** A developer can `FROM ghcr.io/antgeo/octobercms:php8.3`, COPY their OctoberCMS project in, `docker run -e ... myapp:latest` against their own MySQL, and get a working OctoberCMS site at `localhost:80`.
 
+**Post-completion work (required before M2 ships):** Extend `generate-env.sh` to run `php artisan project:set $OCTOBER_LICENCE_KEY` on startup when the env var is set and `/app/auth.json` does not already exist. Add `OCTOBER_LICENCE_KEY` to the optional env var table in the README. Update integration tests to cover this path.
+
 ### M2 — Licence key management (weeks 4-5)
 
-The credential is the OctoberCMS **licence key** — a single string the user already has from their account. At build time the CLI passes it as a BuildKit secret; the generated `Dockerfile` runs `php artisan project:set <key>` inside the vendor stage, which calls the OctoberCMS API, generates `auth.json`, and makes it available to `composer install`. The key and `auth.json` are never written to any image layer.
+The credential is the OctoberCMS **licence key** — a single string the user already has from their account. It serves two distinct purposes:
 
-- `octobercms auth setup` — prompts for the licence key, validates it by running `php artisan project:set` in a one-shot container against the user's project, and stores it at `~/.config/octobercms/auth.yml` (`0600`)
+1. **Build time** — passed as a BuildKit secret; `project:set` runs inside the vendor stage to generate `auth.json` for `composer install`. The key and `auth.json` are discarded after that layer.
+2. **Runtime** — passed as `OCTOBER_LICENCE_KEY` env var to the running container; `generate-env` calls `project:set` on startup to write `/app/auth.json`, making it available to the admin UI plugin/theme installer. Skipped if `/app/auth.json` already exists (operator bind-mounted one).
+
+- `octobercms auth setup` — prompts for the licence key, validates it by running `php artisan project:set` in a one-shot container, and stores it at `~/.config/octobercms/auth.yml` (`0600`)
 - `octobercms auth status` — confirms a stored key exists and that `project:set` succeeds with it
 - `octobercms auth remove` — deletes the stored key
 - `OCTOBER_LICENCE_KEY` env var accepted in CI as an alternative to the stored file
@@ -95,7 +100,11 @@ COPY --from=vendor /app /app
 RUN chown -R www-data:www-data /app
 ```
 
-**Exit criteria:** A developer can run `octobercms auth setup`, enter their licence key, and have `octobercms auth status` confirm it is valid. A subsequent `octobercms deploy` runs `project:set` inside the build via BuildKit secret with no extra steps from the developer. CI works via `OCTOBER_LICENCE_KEY`.
+**Runtime auth.json generation** (M1 image responsibility — see M1 post-completion work):
+
+`generate-env` is extended to run `php artisan project:set $OCTOBER_LICENCE_KEY` if the env var is set and `/app/auth.json` does not already exist. This mirrors the existing `.env` idempotency pattern. `auth.json` is owned by `www-data` so the PHP-FPM process can read it.
+
+**Exit criteria:** A developer can run `octobercms auth setup`, enter their licence key, and have `octobercms auth status` confirm it is valid. A subsequent `octobercms deploy` passes the key as both a BuildKit secret (for the build) and a runtime env var (for the container). The admin UI plugin installer works without any extra configuration. CI works via `OCTOBER_LICENCE_KEY`.
 
 ### M3 — Gem skeleton and `init` command (weeks 6-7)
 
@@ -106,6 +115,7 @@ Builds on M2's credential management. Run inside the user's existing OctoberCMS 
 - If M2 licence key is not yet configured, triggers `auth setup` inline before proceeding
 - Generators for `Dockerfile` (uses the M2 template: `project:set` via BuildKit secret → `composer install` → FROM M1 runtime), `config/deploy.yml`, `.kamal/secrets`, `.env.example`, `.gitignore`
 - The generated `Dockerfile` handles `project:set` and `composer install` automatically — the developer never writes this boilerplate
+- `OCTOBER_LICENCE_KEY` is included in `.kamal/secrets` and the `deploy.yml` secrets block so Kamal injects it as a runtime env var into the container (enabling admin UI plugin installation)
 - `.gitignore` always excludes `auth.json`, `.env`, and `.kamal/secrets`
 - Generators detect existing files and prompt or merge rather than clobber
 - All generators use ERB templates that live in the gem; output is deterministic and diffable
