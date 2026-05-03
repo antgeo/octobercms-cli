@@ -4,7 +4,7 @@
 
 A Ruby gem and Docker image that make deploying OctoberCMS a single-command operation against any Linux server. Built on [Kamal](https://kamal-deploy.org) as the deployment engine.
 
-> **Status:** M1 complete ✓ — M2 complete ✓ (`auth` command set, licence key management) — M3 next.
+> **Status:** M1 complete ✓ — M2 complete ✓ (`auth` command set, licence key management) — M3 complete ✓ (`init` command, deployment scaffolding) — M4 next (`deploy` pipeline).
 
 ---
 
@@ -13,7 +13,7 @@ A Ruby gem and Docker image that make deploying OctoberCMS a single-command oper
 The `octobercms` gem wraps [Kamal](https://kamal-deploy.org) as the deployment engine and adds OctoberCMS-aware scaffolding and lifecycle commands. Ruby 3.2+ required.
 
 ```sh
-gem install octobercms   # coming in v0.1.0 — see below for building from source
+gem install octobercms   # v0.1.0 — see below for building from source
 ```
 
 ### Building from source
@@ -69,176 +69,35 @@ Set `OCTOBER_LICENCE_KEY` as a repository secret. The CLI reads it automatically
 
 ---
 
-## Docker image
+## Scaffold your deployment
 
-The published image is a **runtime environment only**: PHP 8.3-FPM + Nginx + s6-overlay. It contains no OctoberCMS application code. You bring your own OctoberCMS project and build a derived image on top of it.
-
-### Image tags
-
-| Tag | Use |
-|---|---|
-| `ghcr.io/antgeo/octobercms:php8.3` | PHP 8.3 runtime |
-| `ghcr.io/antgeo/octobercms:latest` | Latest published runtime |
-
-Tags encode the PHP version, not the OctoberCMS version. OctoberCMS version is determined by your own `composer.json`.
-
----
-
-## Building your app image
-
-In your OctoberCMS project, create a `Dockerfile`:
-
-```dockerfile
-# syntax=docker/dockerfile:1.7
-FROM composer:2 AS vendor
-WORKDIR /app
-COPY composer.json composer.lock ./
-RUN --mount=type=secret,id=composer_auth,target=/app/auth.json,required=true \
-    composer install --no-dev --no-scripts --prefer-dist --no-autoloader --no-interaction
-COPY . .
-RUN composer dump-autoload --optimize --no-dev --no-interaction
-
-FROM ghcr.io/antgeo/octobercms:php8.3
-COPY --from=vendor /app /app
-RUN chown -R www-data:www-data /app
-```
-
-Build with your OctoberCMS gateway credential:
+Inside your OctoberCMS project directory (must contain `composer.json` and `artisan`):
 
 ```sh
-DOCKER_BUILDKIT=1 docker build \
-  --secret id=composer_auth,src=$HOME/.composer/auth.json \
-  -t my-org/my-site:latest .
+octobercms init
 ```
 
-The `composer_auth` secret is mounted only during `composer install` and is never written to any image layer.
+Walks you through your deployment configuration, then generates:
 
----
+| File | Description |
+|------|-------------|
+| `Dockerfile` | Multi-stage build; injects your licence key via BuildKit secret |
+| `config/deploy.yml` | Kamal config: servers, registry, proxy (TLS), volumes, database |
+| `.kamal/secrets` | Secret env var values — mode `0600`, gitignored |
+| `.env.example` | Runtime env var reference — safe to commit |
+| `.gitignore` | Adds `auth.json`, `.env`, `.kamal/secrets` |
+| `.dockerignore` | Adds `.git`, `vendor`, `.env`, `.kamal/secrets` |
 
-## Running your app image
+On re-run, existing files prompt for overwrite confirmation. Pass `--skip-existing` to skip them silently.
 
 ```sh
-docker run -d \
-  --name october \
-  -p 80:80 \
-  -e APP_KEY="base64:$(openssl rand -base64 32)" \
-  -e APP_URL="https://example.com" \
-  -e DB_CONNECTION=mysql \
-  -e DB_HOST=mysql \
-  -e DB_DATABASE=october \
-  -e DB_USERNAME=october \
-  -e DB_PASSWORD=secret \
-  -v october_storage:/app/storage \
-  my-org/my-site:latest
-```
-
-Run migrations once after the database is ready:
-
-```sh
-docker exec october php artisan october:migrate
+octobercms init --skip-existing
 ```
 
 ---
 
-## Environment variables
+## Docker runtime image
 
-The entrypoint generates `/app/.env` from environment variables on container start. If `/app/.env` already exists (bind-mounted or baked into a derived image) it is left untouched.
+The published image (`ghcr.io/antgeo/octobercms:php8.3`) is a runtime environment only — PHP 8.3-FPM + Nginx + s6-overlay, no OctoberCMS code. `octobercms init` generates a `Dockerfile` into your project that builds a derived image on top of it.
 
-### Required
-
-| Variable | Example | Notes |
-|---|---|---|
-| `APP_KEY` | `base64:...` | Generate: `openssl rand -base64 32`, prefix with `base64:` |
-| `APP_URL` | `https://example.com` | Full URL including scheme |
-| `DB_CONNECTION` | `mysql` | |
-| `DB_HOST` | `mysql` | |
-| `DB_DATABASE` | `october` | |
-| `DB_USERNAME` | `october` | |
-| `DB_PASSWORD` | `secret` | |
-
-### Optional
-
-| Variable | Default | Notes |
-|---|---|---|
-| `APP_NAME` | `OctoberCMS` | |
-| `APP_ENV` | `production` | |
-| `APP_DEBUG` | `false` | |
-| `APP_LOCALE` | `en` | |
-| `DB_PORT` | `3306` | |
-| `STORAGE_DRIVER` | `local` | Maps to Laravel's `FILESYSTEM_DISK` |
-| `CACHE_DRIVER` | `file` | |
-| `SESSION_DRIVER` | `file` | |
-| `QUEUE_CONNECTION` | `sync` | |
-| `MAIL_MAILER` | `log` | |
-| `MAIL_FROM_ADDRESS` | `hello@example.com` | |
-| `MAIL_FROM_NAME` | `OctoberCMS` | |
-| `LOG_CHANNEL` | `stderr` | Logs go to Docker's log driver |
-| `LOG_LEVEL` | `error` | |
-| `OCTOBER_LICENCE_KEY` | _(none)_ | OctoberCMS licence key. When set, `generate-env` runs `php artisan project:set` on startup to write `/app/auth.json`, enabling admin UI plugin/theme installation. Skipped if `/app/auth.json` already exists. |
-
----
-
-## Volume contract
-
-One persistent volume is required:
-
-| Mount | Purpose |
-|---|---|
-| `/app/storage` | User uploads, generated thumbnails, cache, sessions, logs |
-
-`/app/plugins` and `/app/themes` are writable by `www-data` in the base image so admin UI plugin/theme installation works in derived images. Mount them as volumes if you want those changes to persist across redeployments.
-
-**This contract is permanent.** `/app/storage` is the writable volume for the life of the `php8.x` image series. Any change is a major version bump with a documented migration path.
-
----
-
-## Process model
-
-The container runs Nginx, PHP-FPM, and a task scheduler supervised by [s6-overlay](https://github.com/just-containers/s6-overlay) v3. Startup order:
-
-```
-generate-env (oneshot) → php-fpm (longrun) → nginx (longrun)
-                       ↘ scheduler (longrun)
-```
-
-`generate-env` writes `/app/.env` from environment variables before PHP starts. Nginx waits for the PHP-FPM Unix socket before accepting connections. The scheduler runs `php artisan schedule:run` every minute via `crond`, as `www-data`.
-
----
-
-## Health check
-
-`GET /up` is routed through PHP. Your OctoberCMS application is responsible for implementing this endpoint. The `octobercms` CLI scaffolds a healthcheck plugin into new projects that returns:
-
-- `200` — PHP-FPM responsive, database reachable, migrations table present
-- `503` — one or more checks failed, JSON body identifies which
-
----
-
-## Debugging
-
-```sh
-# Shell into a running container
-docker exec -it <container> sh
-
-# Run Artisan commands
-docker exec <container> php artisan october:migrate
-docker exec <container> php artisan cache:clear
-
-# Tail logs
-docker logs -f <container>
-
-# Inspect the generated .env
-docker exec <container> cat /app/.env
-```
-
----
-
-## Building the runtime image locally
-
-```sh
-git clone https://github.com/antgeo/octobercms-cli
-cd octobercms-cli
-docker build -f docker/Dockerfile -t octobercms:php8.3 .
-```
-
-No credentials required — the runtime image contains no OctoberCMS code.
+See [docker/README.md](docker/README.md) for the full reference: image tags, environment variables, volume contract, process model, health check, and debugging.

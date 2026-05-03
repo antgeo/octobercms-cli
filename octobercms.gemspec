@@ -25,4 +25,5 @@ Gem::Specification.new do |spec|
   spec.add_dependency "tty-prompt",  "~> 0.23"
   spec.add_dependency "tty-command", "~> 0.10"
   spec.add_dependency "tty-logger",  "~> 0.6"
+  spec.add_dependency "kamal",       "~> 2.0"
 end
