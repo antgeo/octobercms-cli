@@ -1,0 +1,10 @@
+#!/usr/bin/with-contenv sh
+# Wait for the PHP-FPM socket before starting Nginx. Without this guard Nginx
+# can start, fail to connect on the first request, and emit 502 errors during
+# the container startup window.
+until [ -S /run/php-fpm.sock ]; do
+    echo "[nginx] waiting for PHP-FPM socket..."
+    sleep 0.2
+done
+
+exec nginx -g 'daemon off;'

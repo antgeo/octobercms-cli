@@ -1,0 +1,4 @@
+#!/usr/bin/with-contenv sh
+# --nodaemonize keeps PHP-FPM in the foreground so s6 can supervise it.
+# --force-stderr redirects FPM log output to stderr (captured by Docker).
+exec php-fpm --nodaemonize --force-stderr

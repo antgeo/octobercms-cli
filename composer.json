@@ -1,0 +1,38 @@
+{
+    "name": "octobercms-cli/base-image",
+    "description": "Third-party OctoberCMS Docker image dependencies (not affiliated with OctoberCMS)",
+    "license": "MIT",
+    "type": "project",
+    "require": {
+        "php": "^8.3",
+        "october/rain": "^3.5",
+        "october/system": "^3.5",
+        "october/backend": "^3.5",
+        "october/cms": "^3.5",
+        "october/editor": "^3.5",
+        "october/media": "^3.5"
+    },
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://gateway.octobercms.com",
+            "only": ["october/*"]
+        }
+    ],
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true,
+        "platform": {
+            "php": "8.3.0"
+        }
+    },
+    "extra": {
+        "installer-paths": {
+            "plugins/{$vendor}/{$name}/": ["type:october-plugin"],
+            "themes/{$name}/": ["type:october-theme"]
+        }
+    },
+    "scripts": {
+        "post-autoload-dump": []
+    }
+}

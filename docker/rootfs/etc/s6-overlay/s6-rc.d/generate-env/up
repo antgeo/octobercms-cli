@@ -1,0 +1,2 @@
+#!/usr/bin/with-contenv sh
+exec /etc/s6-overlay/scripts/generate-env.sh

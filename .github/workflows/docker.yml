@@ -1,0 +1,127 @@
+name: Build and push Docker image
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+-php[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag to build (e.g. 3.5-php8.3)'
+        required: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/octobercms
+
+jobs:
+  build-and-push:
+    name: Build and push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write   # required for cosign keyless signing
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Three tag patterns:
+      #   1. Full git tag verbatim (e.g. "3.5-php8.3" or "3.5")
+      #   2. Bare version stripped of PHP suffix (e.g. "3.5" from "3.5-php8.3")
+      #   3. "latest" only on tags without a PHP suffix (the default-PHP build)
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=match,pattern=(\d+\.\d+)-php.+,group=1
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-php') }}
+          labels: |
+            org.opencontainers.image.title=OctoberCMS
+            org.opencontainers.image.description=Third-party Docker image for deploying OctoberCMS (not affiliated with OctoberCMS)
+            org.opencontainers.image.vendor=OctoberCMS CLI (third-party)
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # COMPOSER_AUTH secret holds the content of auth.json for the
+          # OctoberCMS gateway. It is mounted only during composer install
+          # and never written to any image layer.
+          secrets: |
+            composer_auth=${{ secrets.COMPOSER_AUTH }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+
+      # ── Secret leak check ─────────────────────────────────────────────────
+      # Hard failure if any trace of the gateway credential appears in image
+      # history. This catches any accidental inclusion in a layer.
+      - name: Verify no secrets in image layers
+        run: |
+          DIGEST="${{ steps.build.outputs.digest }}"
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
+          docker pull "${IMAGE}"
+          HISTORY=$(docker history --no-trunc "${IMAGE}" 2>&1)
+          if echo "${HISTORY}" | grep -qiE "bearer|gateway\.octobercms\.com"; then
+              echo "ERROR: possible credential found in image history" >&2
+              exit 1
+          fi
+          if docker run --rm --entrypoint sh "${IMAGE}" \
+              -c 'test -f /app/auth.json && echo FOUND || echo ABSENT' \
+              | grep -q FOUND; then
+              echo "ERROR: auth.json found in runtime image" >&2
+              exit 1
+          fi
+          echo "Secret validation passed."
+
+      # ── Image size check ──────────────────────────────────────────────────
+      - name: Check compressed image size
+        run: |
+          DIGEST="${{ steps.build.outputs.digest }}"
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
+          SIZE_BYTES=$(docker manifest inspect "${IMAGE}" \
+            | jq '[.layers[].size] | add')
+          SIZE_MB=$(echo "scale=1; ${SIZE_BYTES}/1024/1024" | bc)
+          echo "Compressed image size: ${SIZE_MB} MB"
+          if [ "${SIZE_BYTES}" -gt $((300 * 1024 * 1024)) ]; then
+              echo "ERROR: image exceeds 300 MB compressed (${SIZE_MB} MB)" >&2
+              exit 1
+          fi
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image
+        run: |
+          cosign sign --yes \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}"

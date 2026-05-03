@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  test:
+    name: Integration tests (base image)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+
+      - name: Build base image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: base
+          load: true
+          tags: octobercms:base
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run integration tests
+        run: |
+          mkdir -p tmp
+          bundle exec rspec --tag integration --tag '~full' --format progress --format RspecJunitFormatter --out tmp/rspec.xml
+        env:
+          OCTOBERCMS_INFRA_IMAGE: octobercms:base
+
+      - name: Upload test results
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: rspec-results
+          path: tmp/rspec.xml
