@@ -76,11 +76,17 @@ The credential is the OctoberCMS **licence key** — a single string the user al
 1. **Build time** — passed as a BuildKit secret; `project:set` runs inside the vendor stage to generate `auth.json` for `composer install`. The key and `auth.json` are discarded after that layer.
 2. **Runtime** — passed as `OCTOBER_LICENCE_KEY` env var to the running container; `generate-env` calls `project:set` on startup to write `/app/auth.json`, making it available to the admin UI plugin/theme installer. Skipped if `/app/auth.json` already exists (operator bind-mounted one).
 
-- `octobercms auth setup` — prompts for the licence key, validates it by running `php artisan project:set` in a one-shot container, and stores it at `~/.config/octobercms/auth.yml` (`0600`)
-- `octobercms auth status` — confirms a stored key exists and that `project:set` succeeds with it
-- `octobercms auth remove` — deletes the stored key
-- `OCTOBER_LICENCE_KEY` env var accepted in CI as an alternative to the stored file
-- `services/auth_store.rb` — read/write `~/.config/octobercms/auth.yml`; resolves in priority order: `OCTOBER_LICENCE_KEY` env var → stored file
+Developers managing multiple OctoberCMS projects (e.g. an agency with many client sites) need a different key per project. The credential layer supports both a global default and per-project overrides.
+
+**Credential resolution order** (`services/auth_store.rb`):
+1. `OCTOBER_LICENCE_KEY` environment variable — highest priority, used in CI
+2. `OCTOBER_LICENCE_KEY` in `.kamal/secrets` — per-project key for the current directory
+3. `~/.config/octobercms/auth.yml` — global default for developers with a single licence
+
+**Commands:**
+- `octobercms auth setup` — prompts for the licence key; if run inside a project directory (`.kamal/` present) asks whether to store globally or for this project only; validates by running `php artisan project:set` in a one-shot container; stores at `~/.config/octobercms/auth.yml` (`0600`) for global, or appends `OCTOBER_LICENCE_KEY=<key>` to `.kamal/secrets` for project-scoped
+- `octobercms auth status` — shows which resolution source is active, confirms `project:set` succeeds with it
+- `octobercms auth remove` — removes the key from whichever source is active (`--global` flag to target the global store explicitly)
 - All licence key values redacted from logs and error output under all circumstances
 
 **Generated Dockerfile template** (produced by M3 `init`):
@@ -112,10 +118,10 @@ Builds on M2's credential management. Run inside the user's existing OctoberCMS 
 
 - Thor-based command tree with `tty-prompt` for interactive flows and `tty-spinner` for progress
 - `octobercms init` command: detects an existing OctoberCMS project, then prompts for deployment config — domain, server address, database choice, container registry
-- If M2 licence key is not yet configured, triggers `auth setup` inline before proceeding
+- Resolves the licence key via `auth_store.rb` (env var → `.kamal/secrets` → global); if no key is found anywhere, triggers `auth setup` inline before proceeding
 - Generators for `Dockerfile` (uses the M2 template: `project:set` via BuildKit secret → `composer install` → FROM M1 runtime), `config/deploy.yml`, `.kamal/secrets`, `.env.example`, `.gitignore`
 - The generated `Dockerfile` handles `project:set` and `composer install` automatically — the developer never writes this boilerplate
-- `OCTOBER_LICENCE_KEY` is included in `.kamal/secrets` and the `deploy.yml` secrets block so Kamal injects it as a runtime env var into the container (enabling admin UI plugin installation)
+- `OCTOBER_LICENCE_KEY` is written to `.kamal/secrets` (project-scoped) and included in the `deploy.yml` secrets block so Kamal injects it as a runtime env var; if a global key is already configured, `init` asks whether to copy it into the project or leave it as a global fallback
 - `.gitignore` always excludes `auth.json`, `.env`, and `.kamal/secrets`
 - Generators detect existing files and prompt or merge rather than clobber
 - All generators use ERB templates that live in the gem; output is deterministic and diffable
@@ -205,9 +211,7 @@ Builds on M2's credential management. Run inside the user's existing OctoberCMS 
 
 ## Team and time
 
-Realistic estimate: **16 weeks for one experienced engineer working full-time on the CLI**, plus coordination time from the OctoberCMS web team for the account API endpoints (M2 dependency). Roughly 7 months part-time alongside other commitments. The Docker image (M1), the auth and API integration (M2), and the deploy lifecycle (M4) are the milestones most likely to slip — all involve real-world infrastructure debugging that doesn't compress well.
-
-The web team's API work is on the critical path. If it slips by more than 2 weeks, the contingency plan is to ship v1 with a manual-credential fallback flow (the original design before API integration was promoted to v1) and add the API integration as a v1.1 update once the API is ready. This contingency should be agreed in writing in week 1 so the decision is fast if it becomes necessary.
+Realistic estimate: **16 weeks for one experienced engineer working full-time on the CLI**. Roughly 7 months part-time alongside other commitments. The deploy lifecycle (M4) and backup/restore (M6) are the milestones most likely to slip — both involve real-world infrastructure debugging that doesn't compress well. There are no external team dependencies on the critical path.
 
 ## Dependencies on other teams
 
