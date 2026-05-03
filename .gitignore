@@ -1,4 +1,5 @@
 .DS_Store
+*.gem
 auth.json
 tmp/
 # OctoberCMS scaffold files (belong in user's project, not in this repo)
