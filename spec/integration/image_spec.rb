@@ -73,6 +73,40 @@ RSpec.describe "Docker image structure", :integration do
       _, _, code = sh_in_image("test -f /etc/s6-overlay/s6-rc.d/php-fpm/dependencies.d/generate-env")
       expect(code).to eq(0)
     end
+
+    it "has scheduler run script and it is executable" do
+      _, _, code = sh_in_image("test -x /etc/s6-overlay/s6-rc.d/scheduler/run")
+      expect(code).to eq(0)
+    end
+
+    it "scheduler depends on generate-env" do
+      _, _, code = sh_in_image("test -f /etc/s6-overlay/s6-rc.d/scheduler/dependencies.d/generate-env")
+      expect(code).to eq(0)
+    end
+
+    it "scheduler is in user bundle" do
+      _, _, code = sh_in_image("test -f /etc/s6-overlay/s6-rc.d/user/contents.d/scheduler")
+      expect(code).to eq(0)
+    end
+  end
+
+  # ── Scheduler ────────────────────────────────────────────────────────────────
+
+  describe "scheduler crontab" do
+    it "has www-data crontab" do
+      _, _, code = sh_in_image("test -f /etc/crontabs/www-data")
+      expect(code).to eq(0)
+    end
+
+    it "crontab is mode 600" do
+      out, _, _ = sh_in_image("stat -c '%a' /etc/crontabs/www-data")
+      expect(out.strip).to eq("600")
+    end
+
+    it "crontab schedules artisan schedule:run every minute" do
+      out, _, _ = sh_in_image("cat /etc/crontabs/www-data")
+      expect(out).to match(%r{\* \* \* \* \*.*artisan schedule:run})
+    end
   end
 
   # ── Volume contract ───────────────────────────────────────────────────────────

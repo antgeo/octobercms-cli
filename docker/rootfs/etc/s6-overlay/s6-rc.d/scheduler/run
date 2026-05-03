@@ -1,0 +1,4 @@
+#!/usr/bin/with-contenv sh
+# -f: foreground (required for s6 supervision)
+# -d 8: log crond daemon messages to stderr at error level only
+exec crond -f -d 8

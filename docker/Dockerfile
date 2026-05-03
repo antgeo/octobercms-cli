@@ -75,6 +75,7 @@ COPY docker/rootfs/ /
 # ── Permissions + writable directories ───────────────────────────────────────
 RUN find /etc/s6-overlay/s6-rc.d -name run -o -name up | xargs chmod +x \
  && chmod +x /etc/s6-overlay/scripts/generate-env.sh \
+ && chmod 600 /etc/crontabs/www-data \
  && mkdir -p \
         /app/storage/app \
         /app/storage/framework/cache \
