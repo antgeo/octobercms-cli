@@ -54,6 +54,37 @@ RSpec.describe OctoberCMS::Commands::Init do
 
   after { ENV.delete("OCTOBER_LICENCE_KEY") }
 
+  # ── GitHub username detection ─────────────────────────────────────────────
+
+  describe "#detect_github_username (private)" do
+    subject(:init) { described_class.new }
+
+    it "extracts username from an HTTPS GitHub remote" do
+      allow(init).to receive(:`).with("git remote get-url origin 2>/dev/null") \
+        .and_return("https://github.com/myorg/myapp.git\n")
+      expect(init.send(:detect_github_username)).to eq("myorg")
+    end
+
+    it "extracts username from an SSH GitHub remote" do
+      allow(init).to receive(:`).with("git remote get-url origin 2>/dev/null") \
+        .and_return("git@github.com:myorg/myapp.git\n")
+      expect(init.send(:detect_github_username)).to eq("myorg")
+    end
+
+    it "returns nil when there is no GitHub remote" do
+      allow(init).to receive(:`).with("git remote get-url origin 2>/dev/null").and_return("")
+      allow(init).to receive(:`).with("git config github.user 2>/dev/null").and_return("")
+      expect(init.send(:detect_github_username)).to be_nil
+    end
+
+    it "falls back to git config github.user when remote is not GitHub" do
+      allow(init).to receive(:`).with("git remote get-url origin 2>/dev/null") \
+        .and_return("https://gitlab.com/myorg/myapp.git\n")
+      allow(init).to receive(:`).with("git config github.user 2>/dev/null").and_return("myorg\n")
+      expect(init.send(:detect_github_username)).to eq("myorg")
+    end
+  end
+
   # ── project detection ──────────────────────────────────────────────────────
 
   describe "#call — project detection" do
@@ -287,6 +318,32 @@ RSpec.describe OctoberCMS::Commands::Init do
           content = File.read(File.join(tmpdir, "config", "deploy.yml"))
           expect(content).to include("1.2.3.4")
           expect(content).to include("5.6.7.8")
+        end
+      end
+    end
+
+    context "registry username pre-fill" do
+      it "pre-fills the registry username from the GitHub remote for ghcr.io" do
+        Dir.chdir(tmpdir) do
+          cmd = described_class.new
+          allow(cmd).to receive(:`).with("git remote get-url origin 2>/dev/null") \
+            .and_return("https://github.com/detected-org/myapp.git\n")
+          allow(TTY::Prompt).to receive(:new).and_return(prompt)
+          expect(prompt).to receive(:ask).with(/Registry username/, hash_including(default: "detected-org")).and_return("detected-org")
+          allow(prompt).to receive(:ask) do |msg, **_opts|
+            case msg
+            when /App name/          then "my-site"
+            when /Docker image/      then "ghcr.io/detected-org/my-site"
+            when /Server IP/         then "1.2.3.4"
+            when /Another server/    then ""
+            when /Domain/            then "example.com"
+            when /Database name/     then "october"
+            when /Database username/ then "october"
+            end
+          end
+          allow(prompt).to receive(:select).and_return("GitHub Container Registry (ghcr.io)", "Built-in MySQL accessory")
+          allow(prompt).to receive(:yes?).and_return(false)
+          run { cmd.call }
         end
       end
     end

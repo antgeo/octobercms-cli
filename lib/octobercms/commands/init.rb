@@ -90,7 +90,8 @@ module OctoberCMS
         registry_server = REGISTRY_SERVERS[registry_choice]
         registry_server = @prompt.ask("Registry server (e.g. registry.example.com):") if registry_server.nil?
 
-        registry_username = @prompt.ask("Registry username:")
+        username_default  = registry_server == "ghcr.io" ? detect_github_username : nil
+        registry_username = @prompt.ask("Registry username:", default: username_default)
         raise Thor::Error, "Registry username is required." if registry_username.nil? || registry_username.strip.empty?
 
         image_default = [registry_server, registry_username, app_name].compact.join("/")
@@ -119,6 +120,16 @@ module OctoberCMS
           october_licence_key: key,
           php_version:         php_version,
         }
+      end
+
+      def detect_github_username
+        url = `git remote get-url origin 2>/dev/null`.strip
+        # HTTPS: https://github.com/username/repo.git
+        # SSH:   git@github.com:username/repo.git
+        match = url.match(%r{github\.com[:/]([^/]+)/})
+        return match[1] if match
+
+        `git config github.user 2>/dev/null`.strip.then { |v| v.empty? ? nil : v }
       end
 
       def detect_php_version
