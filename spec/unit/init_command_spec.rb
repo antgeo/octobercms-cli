@@ -1,5 +1,6 @@
 require "tmpdir"
 require "stringio"
+require "json"
 require_relative "../../lib/octobercms/commands/init"
 
 RSpec.describe OctoberCMS::Commands::Init do
@@ -36,6 +37,7 @@ RSpec.describe OctoberCMS::Commands::Init do
       db_name:             "october",
       db_username:         "october",
       october_licence_key: "test-key",
+      php_version:         "8.3",
     }
   end
 
@@ -285,6 +287,69 @@ RSpec.describe OctoberCMS::Commands::Init do
           content = File.read(File.join(tmpdir, "config", "deploy.yml"))
           expect(content).to include("1.2.3.4")
           expect(content).to include("5.6.7.8")
+        end
+      end
+    end
+
+    context "PHP version detection" do
+      it "defaults to 8.3 when composer.json has no php requirement" do
+        Dir.chdir(tmpdir) do
+          run { described_class.new.call }
+          expect(File.read(File.join(tmpdir, "Dockerfile"))).to include("php8.3")
+        end
+      end
+
+      it "uses the minimum satisfying version for >=8.4" do
+        Dir.chdir(tmpdir) do
+          File.write(File.join(tmpdir, "composer.json"),
+                     JSON.generate("require" => { "php" => ">=8.4" }))
+          run { described_class.new.call }
+          expect(File.read(File.join(tmpdir, "Dockerfile"))).to include("php8.4")
+        end
+      end
+
+      it "uses the minimum satisfying version for ^8.2" do
+        Dir.chdir(tmpdir) do
+          File.write(File.join(tmpdir, "composer.json"),
+                     JSON.generate("require" => { "php" => "^8.2" }))
+          run { described_class.new.call }
+          expect(File.read(File.join(tmpdir, "Dockerfile"))).to include("php8.2")
+        end
+      end
+
+      it "uses the minimum satisfying version for ~8.3" do
+        Dir.chdir(tmpdir) do
+          File.write(File.join(tmpdir, "composer.json"),
+                     JSON.generate("require" => { "php" => "~8.3" }))
+          run { described_class.new.call }
+          expect(File.read(File.join(tmpdir, "Dockerfile"))).to include("php8.3")
+        end
+      end
+
+      it "handles a wildcard constraint like 8.3.*" do
+        Dir.chdir(tmpdir) do
+          File.write(File.join(tmpdir, "composer.json"),
+                     JSON.generate("require" => { "php" => "8.3.*" }))
+          run { described_class.new.call }
+          expect(File.read(File.join(tmpdir, "Dockerfile"))).to include("php8.3")
+        end
+      end
+
+      it "defaults to 8.3 when the constraint contains no 8.x version (e.g. >=7.4)" do
+        Dir.chdir(tmpdir) do
+          File.write(File.join(tmpdir, "composer.json"),
+                     JSON.generate("require" => { "php" => ">=7.4" }))
+          run { described_class.new.call }
+          expect(File.read(File.join(tmpdir, "Dockerfile"))).to include("php8.3")
+        end
+      end
+
+      it "prints the detected PHP version" do
+        Dir.chdir(tmpdir) do
+          File.write(File.join(tmpdir, "composer.json"),
+                     JSON.generate("require" => { "php" => ">=8.5" }))
+          result = run { described_class.new.call }
+          expect(result[:out]).to include("PHP 8.5 detected")
         end
       end
     end

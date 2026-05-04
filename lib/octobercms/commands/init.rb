@@ -1,5 +1,6 @@
 require "thor"
 require "tty-prompt"
+require "json"
 require_relative "../services/auth_store"
 require_relative "../generators/dockerfile"
 require_relative "../generators/deploy_yml"
@@ -11,6 +12,9 @@ require_relative "../generators/dockerignore"
 module OctoberCMS
   module Commands
     class Init
+      SUPPORTED_PHP_VERSIONS = %w[8.2 8.3 8.4 8.5].freeze
+      DEFAULT_PHP_VERSION    = "8.3"
+
       REGISTRY_OPTIONS = [
         "GitHub Container Registry (ghcr.io)",
         "Docker Hub (docker.io)",
@@ -77,6 +81,9 @@ module OctoberCMS
       end
 
       def gather_context(key)
+        php_version = detect_php_version
+        puts "PHP #{php_version} detected from composer.json."
+
         app_name = @prompt.ask("App name:", default: File.basename(Dir.pwd)).to_s.strip
 
         registry_choice = @prompt.select("Container registry:", REGISTRY_OPTIONS)
@@ -110,7 +117,24 @@ module OctoberCMS
           db_name:             db_name.strip,
           db_username:         db_username.strip,
           october_licence_key: key,
+          php_version:         php_version,
         }
+      end
+
+      def detect_php_version
+        data = JSON.parse(File.read(File.join(Dir.pwd, "composer.json")))
+        constraint = data.dig("require", "php").to_s
+        return DEFAULT_PHP_VERSION if constraint.empty?
+
+        # Extract the first 8.x minor from the constraint string.
+        # Handles: ">=8.4", "^8.3", "~8.3", "8.3.*", ">=8.2 <9.0", etc.
+        match = constraint.match(/8\.(\d+)/)
+        return DEFAULT_PHP_VERSION unless match
+
+        min_minor = match[1].to_i
+        SUPPORTED_PHP_VERSIONS.find { |v| v.split(".").last.to_i >= min_minor } || DEFAULT_PHP_VERSION
+      rescue JSON::ParserError
+        DEFAULT_PHP_VERSION
       end
 
       def collect_servers

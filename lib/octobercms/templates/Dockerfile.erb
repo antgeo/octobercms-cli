@@ -8,6 +8,6 @@ RUN --mount=type=secret,id=OCTOBER_LICENCE_KEY \
 COPY . .
 RUN composer dump-autoload --optimize --no-dev --no-interaction
 
-FROM ghcr.io/antgeo/octobercms:php8.3
+FROM ghcr.io/antgeo/octobercms:php<%= php_version %>
 COPY --from=vendor /app /app
 RUN chown -R www-data:www-data /app

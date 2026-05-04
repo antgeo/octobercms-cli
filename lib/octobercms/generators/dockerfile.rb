@@ -10,7 +10,7 @@ module OctoberCMS
       end
 
       def render
-        render_template("Dockerfile.erb", @context)
+        render_template("Dockerfile.erb", { php_version: "8.3" }.merge(@context))
       end
 
       def write(project_dir: Dir.pwd)

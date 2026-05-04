@@ -8,8 +8,19 @@ RSpec.describe OctoberCMS::Generators::Dockerfile do
   subject(:generator) { described_class.new({}) }
 
   describe "#render" do
-    it "includes the OctoberCMS runtime base image" do
+    it "defaults to PHP 8.3 when php_version is not in context" do
       expect(generator.render).to include("FROM ghcr.io/antgeo/octobercms:php8.3")
+    end
+
+    it "uses the php_version from context" do
+      gen = described_class.new(php_version: "8.4")
+      expect(gen.render).to include("FROM ghcr.io/antgeo/octobercms:php8.4")
+    end
+
+    it "renders the correct runtime tag for each supported version" do
+      %w[8.2 8.3 8.4 8.5].each do |v|
+        expect(described_class.new(php_version: v).render).to include("FROM ghcr.io/antgeo/octobercms:php#{v}")
+      end
     end
 
     it "mounts OCTOBER_LICENCE_KEY as a BuildKit secret" do
@@ -44,9 +55,14 @@ RSpec.describe OctoberCMS::Generators::Dockerfile do
       expect(File.exist?(File.join(tmpdir, "Dockerfile"))).to be true
     end
 
-    it "writes the correct content" do
+    it "writes the default PHP version when context is empty" do
       generator.write(project_dir: tmpdir)
       expect(File.read(File.join(tmpdir, "Dockerfile"))).to include("FROM ghcr.io/antgeo/octobercms:php8.3")
+    end
+
+    it "writes the specified PHP version" do
+      described_class.new(php_version: "8.5").write(project_dir: tmpdir)
+      expect(File.read(File.join(tmpdir, "Dockerfile"))).to include("FROM ghcr.io/antgeo/octobercms:php8.5")
     end
   end
 end
