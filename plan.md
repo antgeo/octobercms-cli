@@ -130,7 +130,7 @@ Builds on M2's credential management. Run inside the user's existing OctoberCMS 
 
 **Exit criteria:** A developer can run `octobercms init` inside their OctoberCMS project, answer the prompts, and end up with a `Dockerfile` targeting the M1 runtime image, a valid `config/deploy.yml`, properly gitignored secrets, and a `doctor` run that passes.
 
-### M4 — Deploy lifecycle (weeks 8-10)
+### M4 — Deploy lifecycle (weeks 8-10) ✅ COMPLETE
 
 - `octobercms deploy` orchestrates the full pipeline: pre-flight checks → build → push → migrate → rolling deploy → post-deploy
 - Pre-flight checks include licence key presence and validity; failures here are fast and clear

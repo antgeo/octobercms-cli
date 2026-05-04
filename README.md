@@ -4,7 +4,7 @@
 
 A Ruby gem and Docker image that make deploying OctoberCMS a single-command operation against any Linux server. Built on [Kamal](https://kamal-deploy.org) as the deployment engine.
 
-> **Status:** M1 complete ✓ — M2 complete ✓ (`auth` command set, licence key management) — M3 complete ✓ (`init` command, deployment scaffolding) — M4 next (`deploy` pipeline).
+> **Status:** M1 complete ✓ — M2 complete ✓ (`auth` command set, licence key management) — M3 complete ✓ (`init` command, deployment scaffolding) — M4 complete ✓ (`deploy` pipeline, `doctor` checks) — M5 next (plugin management).
 
 ---
 
@@ -92,6 +92,60 @@ On re-run, existing files prompt for overwrite confirmation. Pass `--skip-existi
 
 ```sh
 octobercms init --skip-existing
+```
+
+---
+
+## Deploy
+
+Inside your OctoberCMS project directory (must have been set up with `octobercms init`):
+
+```sh
+octobercms deploy                  # full pipeline: pre-flight → build → migrate → deploy
+octobercms deploy --skip-migrate   # skip the migration step
+```
+
+The pipeline in order:
+
+1. Pre-flight checks (local files only — fast)
+2. `kamal build push` — builds the image and pushes to your registry
+3. `kamal app exec --reuse 'php artisan october:migrate'` — runs migrations before rolling restart
+4. `kamal deploy` — rolling restart with health check via `/up`
+
+### Individual steps
+
+```sh
+octobercms build    # build and push the image only
+octobercms migrate  # run migrations only (in the running container)
+```
+
+### Pre-deploy checks
+
+```sh
+octobercms doctor            # run all checks: files, Docker, Kamal config, git history
+octobercms doctor --validate # also validate the licence key against the OctoberCMS gateway
+```
+
+Checks performed:
+
+| # | Check |
+|---|-------|
+| 1 | `config/deploy.yml` exists |
+| 2 | `.kamal/secrets` has all required keys set |
+| 3 | Licence key configured |
+| 4 | `.gitignore` excludes `auth.json`, `.env`, `.kamal/secrets` |
+| 5 | Docker is running |
+| 6 | Kamal configuration is valid |
+| 7 | Licence key not present in git history |
+| 8 | Licence key valid (gateway) — `--validate` only |
+
+### Debugging
+
+```sh
+octobercms console             # interactive shell in the running container
+octobercms logs                # tail logs (follow, 100 lines)
+octobercms logs --lines 50     # tail with custom line count
+octobercms logs --no-follow    # print and exit
 ```
 
 ---
