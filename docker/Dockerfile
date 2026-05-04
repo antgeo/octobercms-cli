@@ -1,18 +1,19 @@
 # syntax=docker/dockerfile:1.7
 
-# OctoberCMS runtime image — PHP 8.3-FPM + Nginx + s6-overlay.
+# OctoberCMS runtime image — PHP-FPM + Nginx + s6-overlay.
 #
 # This image is a runtime environment. It contains no OctoberCMS application
 # code. Users build a derived image on top of this one that COPYs their own
 # vendor/, plugins/, themes/, and application scaffold into /app.
 #
 # Build:
-#   docker build -f docker/Dockerfile -t octobercms:php8.3 .
+#   docker build -f docker/Dockerfile --build-arg PHP_VERSION=8.4 -t octobercms:php8.4 .
 #
 # Run (derived image):
 #   docker run -e APP_KEY=... -e APP_URL=... -e DB_HOST=... myapp:latest
 
-FROM php:8.3-fpm-alpine
+ARG PHP_VERSION=8.3
+FROM php:${PHP_VERSION}-fpm-alpine
 
 ARG S6_OVERLAY_VERSION=3.2.2.0
 ARG TARGETARCH

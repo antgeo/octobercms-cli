@@ -3,21 +3,22 @@ name: Build and push Docker image
 on:
   push:
     tags:
-      - 'php[0-9]+.[0-9]+'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Image tag to build (e.g. php8.3)'
-        required: true
+      - 'runtime-v[0-9]+.[0-9]+'   # e.g. runtime-v1.0 — builds all PHP versions
+  workflow_dispatch:         # manual trigger also builds all versions
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/octobercms
+  LATEST_PHP: '8.5'
 
 jobs:
   build-and-push:
-    name: Build and push
+    name: PHP ${{ matrix.php_version }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php_version: ['8.2', '8.3', '8.4', '8.5']
     permissions:
       contents: read
       packages: write
@@ -42,9 +43,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Two tag patterns:
-      #   1. Full git tag verbatim (e.g. "php8.3")
-      #   2. "latest" always points to the most recently published build
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -52,10 +50,10 @@ jobs:
           images: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=tag
-            type=raw,value=latest
+            type=raw,value=php${{ matrix.php_version }}
+            type=raw,value=latest,enable=${{ matrix.php_version == env.LATEST_PHP }}
           labels: |
-            org.opencontainers.image.title=OctoberCMS Runtime
+            org.opencontainers.image.title=OctoberCMS Runtime (PHP ${{ matrix.php_version }})
             org.opencontainers.image.description=Third-party OctoberCMS runtime image — PHP-FPM + Nginx + s6-overlay (not affiliated with OctoberCMS)
             org.opencontainers.image.vendor=OctoberCMS CLI (third-party)
 
@@ -67,10 +65,11 @@ jobs:
           file: docker/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: PHP_VERSION=${{ matrix.php_version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=php${{ matrix.php_version }}
+          cache-to: type=gha,mode=max,scope=php${{ matrix.php_version }}
           provenance: true
           sbom: true
 
