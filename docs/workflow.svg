@@ -53,7 +53,7 @@
   <circle cx="218" cy="268" r="3" fill="#94a3b8"/>
   <text x="228" y="272" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#334155">Resolve licence key: env var → <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">.kamal/secrets</tspan> → global → prompt for auth setup</text>
   <circle cx="218" cy="290" r="3" fill="#94a3b8"/>
-  <text x="228" y="294" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#334155">Gather context: app name · registry · Docker image · server IPs · domain · database</text>
+  <text x="228" y="294" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#334155">Gather context: app name · registry · server IPs · domain · database · PHP version (<tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">composer.json</tspan>)</text>
   <!-- Generates label -->
   <circle cx="218" cy="312" r="3" fill="#94a3b8"/>
   <text x="228" y="316" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#334155">Generates 6 files:</text>
