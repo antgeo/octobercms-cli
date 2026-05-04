@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**M1 (Docker runtime image), M2 (licence key management), and M3 (`init` command + file generators) are complete.** M4 (deploy command pipeline) is next.
+**M1 (Docker runtime image), M2 (licence key management), M3 (`init` command + file generators), and M4 (deploy command pipeline) are complete.** M5 (backup and restore) is next.
 
 ## What this project is
 
@@ -80,16 +80,18 @@ generate-env (oneshot) → php-fpm (longrun) → nginx (longrun)
 
 s6-overlay v3 supervises PHP-FPM and Nginx. `generate-env` writes `/app/.env` from environment variables before PHP starts. If `/app/.env` already exists (bind-mounted or baked in), it is left untouched. Nginx waits for the PHP-FPM Unix socket (`/run/php-fpm.sock`) before accepting connections.
 
-## Gem structure (M3 — current)
+## Gem structure (M4 — current)
 
 ```
 bin/octobercms               # CLI entrypoint
 lib/octobercms/
-  cli.rb                     # Thor command tree root — auth subcommand + init method
+  cli.rb                     # Thor command tree root — all commands registered here
   version.rb                 # 0.1.0
   commands/
     auth.rb                  # auth setup / status / remove (Thor subclass)
     init.rb                  # octobercms init (plain Ruby class, call via CLI)
+    deploy.rb                # octobercms deploy / build / migrate / console / logs
+    doctor.rb                # octobercms doctor — 8-check pre-deploy checklist
   generators/
     base.rb                  # render_template (ERB) + atomic write_file helpers
     dockerfile.rb            # renders Dockerfile.erb
@@ -100,6 +102,7 @@ lib/octobercms/
     dockerignore.rb          # append-only: .git, .gitignore, .env, auth.json, .kamal/secrets, vendor
   services/
     auth_store.rb            # credential resolution + storage
+    kamal.rb                 # tty-command wrapper; licence key redaction; run / run!
   templates/
     Dockerfile.erb
     deploy.yml.erb
@@ -110,6 +113,8 @@ spec/
     auth_commands_spec.rb    # 38 tests for auth commands
     auth_store_spec.rb       # 16 tests for AuthStore
     init_command_spec.rb     # 17 tests for Init
+    deploy_command_spec.rb   # 26 tests for Deploy
+    doctor_command_spec.rb   # 34 tests for Doctor
     generators/
       dockerfile_spec.rb
       deploy_yml_spec.rb
@@ -117,7 +122,53 @@ spec/
       env_example_spec.rb
       gitignore_spec.rb
       dockerignore_spec.rb
+    services/
+      kamal_spec.rb          # 9 tests for Services::Kamal
 ```
+
+### Commands::Deploy — deploy lifecycle
+
+`deploy.rb` is a plain Ruby class registered as methods on `CLI < Thor`. Key methods:
+
+- `call` — full pipeline (pre-flight → build push → migrate → deploy)
+- `build_only` — `kamal build push` only
+- `migrate_only` — `kamal app exec --reuse 'php artisan october:migrate'` only
+- `console` — calls `Kernel#exec("kamal", "app", "exec", "--interactive", "bash", ...)` to replace the process and give Kamal the real TTY
+- `logs` — `kamal app logs [--follow] --lines N`
+
+Constructor injection: `kamal:` and `doctor:` kwargs accepted for test doubles.
+
+### Commands::Doctor — pre-deploy checklist
+
+`doctor.rb` runs 8 checks in two groups. Returns `true` / `false`; prints `✓` / `✗` per check.
+
+| Option | Effect |
+|--------|--------|
+| `fast: true` | Local-file checks only (1–4); no shell-outs — used by deploy pre-flight |
+| `quiet: true` | Suppresses all output — used by deploy pre-flight |
+| `validate: true` | Adds check 8 (HTTP call to gateway) |
+
+Checks:
+
+1. `config/deploy.yml` exists
+2. `.kamal/secrets` has all required keys set to non-empty values (rejects `KEY=""`)
+3. Licence key configured via `AuthStore`
+4. `.gitignore` contains `auth.json`, `.env`, `.kamal/secrets`
+5. Docker is running (`docker info`)
+6. Kamal config is valid (`kamal config`)
+7. Licence key not in git history (`git log -S <key>`)
+8. Licence key valid via gateway (HTTP Basic to `gateway.octobercms.com`)
+
+Required secret keys for check 2: `KAMAL_REGISTRY_PASSWORD`, `OCTOBER_LICENCE_KEY`, `APP_KEY`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`.
+
+### Services::Kamal — tty-command wrapper
+
+`kamal.rb` wraps all `kamal` invocations. Constructor takes `project_dir:`, `licence_key:`, `output:` (tty-command printer, default `:pretty`), and `cmd:` (for injection in tests).
+
+- `run(*args)` — runs `kamal <args>`; raises `Kamal::Error` on non-zero exit
+- `run!(*args)` — same but raises `Thor::Error` (user-facing) instead
+- `Kamal::Error` — inner class of `Services::Kamal`
+- Redacts the licence key from all exception messages via `str.gsub(@redact, "[REDACTED]")`
 
 ### Commands::Init — plain Ruby class pattern
 
@@ -160,8 +211,8 @@ File writes are atomic: write to `.tmp` → `chmod 0600` → rename. Keys in `.k
 
 - **Thor** (`~> 1.3`) — command tree; `raise Thor::Error` for user-facing errors; `Commands::Init` is a plain Ruby class registered on `CLI`, not a Thor subclass
 - **tty-prompt** (`~> 0.23`) — masked key input, yes/no confirms, select menus
-- **tty-command, tty-logger** (`~> 0.10`, `~> 0.6`) — reserved for M4 deploy pipeline
-- **kamal** (`~> 2.0`) — deploy engine; called via tty-command in M4+
+- **tty-command** (`~> 0.10`) — shells out to `kamal`; streams output; used by `Services::Kamal`
+- **kamal** (`~> 2.0`) — deploy engine; invoked via tty-command shell-out (never `require "kamal"`)
 - **Net::HTTP** (stdlib) — gateway validation; no extra HTTP gem dependency
 
 ### Running gem tests
@@ -170,17 +221,20 @@ File writes are atomic: write to `.tmp` → `chmod 0600` → rename. Keys in `.k
 bundle exec rspec spec/unit/auth_store_spec.rb
 bundle exec rspec spec/unit/auth_commands_spec.rb
 bundle exec rspec spec/unit/init_command_spec.rb
+bundle exec rspec spec/unit/deploy_command_spec.rb
+bundle exec rspec spec/unit/doctor_command_spec.rb
+bundle exec rspec spec/unit/services/kamal_spec.rb
 bundle exec rspec spec/unit/generators/
-bundle exec rspec --tag '~integration'  # all unit tests (148 examples)
+bundle exec rspec --tag '~integration'  # all unit tests (204 examples)
 ```
 
-## M4+ planned additions
+## M5+ planned additions
 
 ```
 lib/octobercms/commands/
-  deploy.rb / plugin.rb / backup.rb / doctor.rb
+  backup.rb
 lib/octobercms/services/
-  kamal.rb / composer.rb / docker.rb / api_client.rb
+  docker.rb / api_client.rb
 ```
 
 Commands are thin (parsing, prompting, dispatching). Logic lives in services and generators.
@@ -189,14 +243,12 @@ Commands are thin (parsing, prompting, dispatching). Logic lives in services and
 
 `octobercms deploy` pipeline (run inside the user's OctoberCMS project repo):
 
-1. **Pre-flight** — auth state, licence health, composer.lock validity
-2. **Build** — Kamal reads `OCTOBER_LICENCE_KEY` from `.kamal/secrets` and passes it to `docker build` as a BuildKit secret; the generated `Dockerfile` uses it via `COMPOSER_AUTH` during `composer install` only — never enters image layers
-3. **Push** — `kamal registry login && docker push`
-4. **Migrate** — one-shot container runs `php artisan october:migrate` **before** rolling deploy
-5. **Deploy** — `kamal deploy` (rolling restart via `/up` health check)
-6. **Post-deploy** — cache clear, optional route warming
+1. **Pre-flight** — `Doctor` (fast + quiet mode) checks local files only: `config/deploy.yml`, `.kamal/secrets`, licence key, `.gitignore`. Failures print a single message directing the user to `octobercms doctor`.
+2. **Build + push** — `kamal build push`. Kamal reads `OCTOBER_LICENCE_KEY` from `.kamal/secrets` and passes it to `docker build` as a BuildKit secret; the generated `Dockerfile` uses it via `COMPOSER_AUTH` during `composer install` only — never enters image layers.
+3. **Migrate** — `kamal app exec --reuse 'php artisan october:migrate'` runs in the **existing** container before rolling restart.
+4. **Deploy** — `kamal deploy` (rolling restart via `/up` health check). Note: `kamal deploy` also builds; Docker layer cache makes the re-build fast after step 2. A skip-build variant will replace this once the correct Kamal 2.x flag is confirmed in M5.
 
-Each step is also its own subcommand (`octobercms build`, `octobercms migrate`, etc.) for debugging.
+Each step is its own subcommand for debugging: `octobercms build`, `octobercms migrate`. Pass `--skip-migrate` to `deploy` to skip step 3.
 
 ## Architecture: authentication and secrets
 
@@ -212,7 +264,7 @@ Each step is also its own subcommand (`octobercms build`, `octobercms migrate`, 
 - The generated `Dockerfile` reads it via `COMPOSER_AUTH` env var during `composer install` only — it never enters image layers or the running container
 - Runtime container has no licence credentials
 
-_Planned (M5+): the CLI will fetch the licence key from the OctoberCMS API at build time using an account token (OAuth flow), eliminating manual key entry._
+_Planned (M6+): the CLI will fetch the licence key from the OctoberCMS API at build time using an account token (OAuth flow), eliminating manual key entry._
 
 **Never log or display the licence key or account token under any circumstance, including `--verbose` mode.** Redact any matching pattern from all output.
 

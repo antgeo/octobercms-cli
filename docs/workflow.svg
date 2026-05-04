@@ -1,0 +1,209 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 894" width="860" height="894">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#475569"/>
+    </marker>
+    <marker id="arr-sm" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- Page background -->
+  <rect width="860" height="894" fill="#f1f5f9" rx="12"/>
+
+  <!-- Title -->
+  <text x="430" y="34" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="17" font-weight="700" fill="#0f172a" text-anchor="middle">OctoberCMS CLI — Deployment Workflow</text>
+  <text x="430" y="52" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#64748b" text-anchor="middle">M1: Docker runtime image  ·  M2: auth commands  ·  M3: init command  ·  M4: deploy ✓</text>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- PHASE 1 — Auth                                            -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <rect x="30" y="66" width="800" height="108" rx="8" fill="white" stroke="#bfdbfe" stroke-width="1.5"/>
+  <!-- Header -->
+  <rect x="30" y="66" width="800" height="28" rx="8" fill="#1d4ed8"/>
+  <rect x="30" y="79" width="800" height="15" fill="#1d4ed8"/>
+  <text x="50" y="85" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="12" font-weight="600" fill="white">Phase 1 — Authentication</text>
+  <text x="812" y="85" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#93c5fd" text-anchor="end">M2 ✓</text>
+  <!-- Command pill -->
+  <rect x="50" y="105" width="184" height="22" rx="11" fill="#1e40af"/>
+  <text x="142" y="120" font-family="ui-monospace,Menlo,monospace" font-size="11" font-weight="500" fill="white" text-anchor="middle">octobercms auth setup</text>
+  <!-- Items -->
+  <circle cx="252" cy="116" r="3" fill="#94a3b8"/>
+  <text x="262" y="120" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#334155">Prompts for licence key (masked input), validates against <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">gateway.octobercms.com</tspan></text>
+  <circle cx="252" cy="141" r="3" fill="#94a3b8"/>
+  <text x="262" y="145" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#334155">Stores in <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">~/.config/octobercms/auth.yml</tspan> (global)  or  <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">.kamal/secrets</tspan> (per-project)   — mode 0600</text>
+  <!-- arrow down -->
+  <line x1="430" y1="174" x2="430" y2="194" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- PHASE 2 — Init                                            -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <rect x="30" y="196" width="800" height="183" rx="8" fill="white" stroke="#bbf7d0" stroke-width="1.5"/>
+  <!-- Header -->
+  <rect x="30" y="196" width="800" height="28" rx="8" fill="#15803d"/>
+  <rect x="30" y="209" width="800" height="15" fill="#15803d"/>
+  <text x="50" y="215" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="12" font-weight="600" fill="white">Phase 2 — Scaffolding</text>
+  <text x="812" y="215" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#86efac" text-anchor="end">M3 ✓</text>
+  <!-- Command pill -->
+  <rect x="50" y="235" width="150" height="22" rx="11" fill="#166534"/>
+  <text x="125" y="250" font-family="ui-monospace,Menlo,monospace" font-size="11" font-weight="500" fill="white" text-anchor="middle">octobercms init</text>
+  <!-- Items -->
+  <circle cx="218" cy="246" r="3" fill="#94a3b8"/>
+  <text x="228" y="250" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#334155">Detect OctoberCMS project (<tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">composer.json</tspan> + <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">artisan</tspan> in cwd)</text>
+  <circle cx="218" cy="268" r="3" fill="#94a3b8"/>
+  <text x="228" y="272" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#334155">Resolve licence key: env var → <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">.kamal/secrets</tspan> → global → prompt for auth setup</text>
+  <circle cx="218" cy="290" r="3" fill="#94a3b8"/>
+  <text x="228" y="294" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#334155">Gather context: app name · registry · Docker image · server IPs · domain · database</text>
+  <!-- Generates label -->
+  <circle cx="218" cy="312" r="3" fill="#94a3b8"/>
+  <text x="228" y="316" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#334155">Generates 6 files:</text>
+
+  <!-- File pills row 1 -->
+  <rect x="330" y="303" width="84" height="18" rx="9" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="1"/>
+  <text x="372" y="315" font-family="ui-monospace,Menlo,monospace" font-size="9.5" fill="#0369a1" text-anchor="middle">Dockerfile</text>
+  <rect x="422" y="303" width="130" height="18" rx="9" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="1"/>
+  <text x="487" y="315" font-family="ui-monospace,Menlo,monospace" font-size="9.5" fill="#0369a1" text-anchor="middle">config/deploy.yml</text>
+  <rect x="560" y="303" width="113" height="18" rx="9" fill="#fef9c3" stroke="#fde047" stroke-width="1"/>
+  <text x="616" y="315" font-family="ui-monospace,Menlo,monospace" font-size="9.5" fill="#854d0e" text-anchor="middle">.kamal/secrets</text>
+  <rect x="681" y="303" width="94" height="18" rx="9" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="1"/>
+  <text x="728" y="315" font-family="ui-monospace,Menlo,monospace" font-size="9.5" fill="#0369a1" text-anchor="middle">.env.example</text>
+
+  <!-- File pills row 2 -->
+  <rect x="330" y="327" width="73" height="18" rx="9" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="366" y="339" font-family="ui-monospace,Menlo,monospace" font-size="9.5" fill="#475569" text-anchor="middle">.gitignore</text>
+  <rect x="411" y="327" width="89" height="18" rx="9" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="455" y="339" font-family="ui-monospace,Menlo,monospace" font-size="9.5" fill="#475569" text-anchor="middle">.dockerignore</text>
+
+  <!-- Legend -->
+  <rect x="620" y="330" width="9" height="9" rx="2" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="1"/>
+  <text x="634" y="339" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="10" fill="#64748b">committed</text>
+  <rect x="692" y="330" width="9" height="9" rx="2" fill="#fef9c3" stroke="#fde047" stroke-width="1"/>
+  <text x="706" y="339" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="10" fill="#64748b">secret</text>
+  <rect x="742" y="330" width="9" height="9" rx="2" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="756" y="339" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="10" fill="#64748b">append-only</text>
+
+  <!-- arrow down -->
+  <line x1="430" y1="379" x2="430" y2="399" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- PHASE 3 — Deploy                                          -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <rect x="30" y="401" width="800" height="332" rx="8" fill="white" stroke="#fed7aa" stroke-width="1.5"/>
+  <!-- Header -->
+  <rect x="30" y="401" width="800" height="28" rx="8" fill="#c2410c"/>
+  <rect x="30" y="414" width="800" height="15" fill="#c2410c"/>
+  <text x="50" y="420" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="12" font-weight="600" fill="white">Phase 3 — Deploy</text>
+  <text x="812" y="420" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#fed7aa" text-anchor="end">M4 ✓</text>
+  <!-- Command pill -->
+  <rect x="50" y="440" width="165" height="22" rx="11" fill="#9a3412"/>
+  <text x="132" y="455" font-family="ui-monospace,Menlo,monospace" font-size="11" font-weight="500" fill="white" text-anchor="middle">octobercms deploy</text>
+
+  <!-- Bullet 1: pre-flight -->
+  <circle cx="232" cy="451" r="3" fill="#94a3b8"/>
+  <text x="242" y="455" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#334155">Pre-flight (fast mode): <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">deploy.yml</tspan> · <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">.kamal/secrets</tspan> keys · licence key · <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">.gitignore</tspan></text>
+
+  <!-- Bullet 2: build + push (text sits above the credential chain) -->
+  <circle cx="232" cy="473" r="3" fill="#94a3b8"/>
+  <text x="242" y="477" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#334155">Build + push — <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">kamal build push</tspan></text>
+
+  <!-- Credential chain (below the build+push text) -->
+  <rect x="242" y="484" width="114" height="20" rx="4" fill="#fef9c3" stroke="#fde047" stroke-width="1"/>
+  <text x="299" y="497" font-family="ui-monospace,Menlo,monospace" font-size="9" fill="#854d0e" text-anchor="middle">OCTOBER_LICENCE_KEY</text>
+  <text x="244" y="515" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="9" fill="#94a3b8" text-anchor="middle">.kamal/secrets</text>
+
+  <line x1="356" y1="494" x2="370" y2="494" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr-sm)"/>
+
+  <rect x="372" y="484" width="112" height="20" rx="4" fill="#e0e7ff" stroke="#a5b4fc" stroke-width="1"/>
+  <text x="428" y="497" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="9.5" fill="#3730a3" text-anchor="middle">Kamal builder.secrets</text>
+  <text x="428" y="515" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="9" fill="#94a3b8" text-anchor="middle">config/deploy.yml</text>
+
+  <line x1="484" y1="494" x2="498" y2="494" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr-sm)"/>
+
+  <rect x="500" y="484" width="95" height="20" rx="4" fill="#e0e7ff" stroke="#a5b4fc" stroke-width="1"/>
+  <text x="547" y="497" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="9.5" fill="#3730a3" text-anchor="middle">BuildKit secret</text>
+  <text x="547" y="515" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="9" fill="#94a3b8" text-anchor="middle">docker build --secret</text>
+
+  <line x1="595" y1="494" x2="609" y2="494" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr-sm)"/>
+
+  <rect x="611" y="484" width="112" height="20" rx="4" fill="#dcfce7" stroke="#86efac" stroke-width="1"/>
+  <text x="667" y="497" font-family="ui-monospace,Menlo,monospace" font-size="9.5" fill="#166534" text-anchor="middle">COMPOSER_AUTH</text>
+  <text x="667" y="515" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="9" fill="#94a3b8" text-anchor="middle">composer install only</text>
+
+  <!-- No creds note -->
+  <text x="242" y="533" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="10" fill="#64748b" font-style="italic">└─ licence key mounts only during RUN instruction — never written to image layers</text>
+
+  <!-- Bullet 3: subcommands -->
+  <circle cx="232" cy="553" r="3" fill="#94a3b8"/>
+  <text x="242" y="557" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#334155">Subcommands: <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">octobercms build</tspan> · <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">octobercms migrate</tspan> · <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">--skip-migrate</tspan> to omit step 3</text>
+
+  <!-- Bullet 4: migrate -->
+  <circle cx="232" cy="575" r="3" fill="#94a3b8"/>
+  <text x="242" y="579" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#334155">Run <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">php artisan october:migrate</tspan> via <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">--reuse</tspan> in existing container, <tspan font-weight="600">before</tspan> rolling deploy</text>
+
+  <!-- Bullet 5: rolling deploy -->
+  <circle cx="232" cy="597" r="3" fill="#94a3b8"/>
+  <text x="242" y="601" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#334155">Rolling deploy via Kamal · kamal-proxy manages TLS (Let's Encrypt) · health check: <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">GET /up</tspan></text>
+
+  <!-- Divider -->
+  <line x1="50" y1="615" x2="780" y2="615" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- Doctor command pill -->
+  <rect x="50" y="620" width="258" height="22" rx="11" fill="#9a3412"/>
+  <text x="179" y="635" font-family="ui-monospace,Menlo,monospace" font-size="11" font-weight="500" fill="white" text-anchor="middle">octobercms doctor [--validate]</text>
+
+  <!-- Doctor bullets -->
+  <circle cx="232" cy="654" r="3" fill="#94a3b8"/>
+  <text x="242" y="658" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#334155">Local (fast): <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">deploy.yml</tspan> · <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">.kamal/secrets</tspan> keys · licence key · <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">.gitignore</tspan></text>
+
+  <circle cx="232" cy="676" r="3" fill="#94a3b8"/>
+  <text x="242" y="680" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#334155">Full: Docker running · kamal config · no key in git history · <tspan font-family="ui-monospace,Menlo,monospace" font-size="10" fill="#0369a1">--validate</tspan> checks gateway</text>
+
+  <!-- arrow down -->
+  <line x1="430" y1="733" x2="430" y2="753" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- PHASE 4 — Running on Server                               -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <rect x="30" y="755" width="800" height="122" rx="8" fill="white" stroke="#e9d5ff" stroke-width="1.5"/>
+  <!-- Header -->
+  <rect x="30" y="755" width="800" height="28" rx="8" fill="#6d28d9"/>
+  <rect x="30" y="768" width="800" height="15" fill="#6d28d9"/>
+  <text x="50" y="774" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="12" font-weight="600" fill="white">Running on Server</text>
+  <text x="812" y="774" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" fill="#d8b4fe" text-anchor="end">Linux + Docker</text>
+
+  <!-- kamal-proxy -->
+  <rect x="50" y="796" width="118" height="66" rx="6" fill="#f5f3ff" stroke="#c4b5fd" stroke-width="1.5"/>
+  <text x="109" y="816" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" font-weight="600" fill="#4c1d95" text-anchor="middle">kamal-proxy</text>
+  <text x="109" y="832" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="10" fill="#6d28d9" text-anchor="middle">TLS / Let's Encrypt</text>
+  <text x="109" y="847" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="10" fill="#6d28d9" text-anchor="middle">ports 80 + 443</text>
+  <!-- arrow -->
+  <line x1="168" y1="829" x2="190" y2="829" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- App container -->
+  <rect x="192" y="796" width="155" height="66" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <text x="269" y="816" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" font-weight="600" fill="#14532d" text-anchor="middle">App container</text>
+  <text x="269" y="832" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="10" fill="#15803d" text-anchor="middle">PHP-FPM · Nginx · s6</text>
+  <text x="269" y="847" font-family="ui-monospace,Menlo,monospace" font-size="9" fill="#15803d" text-anchor="middle">/app/storage  (required)</text>
+  <!-- arrow -->
+  <line x1="347" y1="829" x2="369" y2="829" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- MySQL accessory -->
+  <rect x="371" y="796" width="128" height="66" rx="6" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+  <text x="435" y="816" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" font-weight="600" fill="#1e3a8a" text-anchor="middle">MySQL accessory</text>
+  <text x="435" y="832" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="10" fill="#1d4ed8" text-anchor="middle">MySQL 8.0</text>
+  <text x="435" y="847" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="10" fill="#1d4ed8" text-anchor="middle">/var/mysql/data</text>
+  <!-- or label -->
+  <text x="521" y="833" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="10" fill="#94a3b8" text-anchor="middle">or</text>
+  <!-- External DB -->
+  <rect x="533" y="796" width="128" height="66" rx="6" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="597" y="816" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="11" font-weight="600" fill="#475569" text-anchor="middle">External DB</text>
+  <text x="597" y="832" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="10" fill="#64748b" text-anchor="middle">PlanetScale · Aiven</text>
+  <text x="597" y="847" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="10" fill="#64748b" text-anchor="middle">configure manually</text>
+
+  <!-- Volumes box -->
+  <rect x="682" y="796" width="120" height="66" rx="6" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+  <text x="742" y="816" font-family="ui-sans-serif,system-ui,-apple-system,sans-serif" font-size="10" font-weight="600" fill="#9a3412" text-anchor="middle">Persistent Volumes</text>
+  <text x="742" y="831" font-family="ui-monospace,Menlo,monospace" font-size="9" fill="#c2410c" text-anchor="middle">/app/storage</text>
+  <text x="742" y="844" font-family="ui-monospace,Menlo,monospace" font-size="9" fill="#c2410c" text-anchor="middle">/app/plugins</text>
+  <text x="742" y="857" font-family="ui-monospace,Menlo,monospace" font-size="9" fill="#c2410c" text-anchor="middle">/app/themes</text>
+</svg>
