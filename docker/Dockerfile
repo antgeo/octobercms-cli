@@ -37,12 +37,11 @@ RUN apk add --no-cache \
         libpng-dev \
         libwebp-dev \
         libzip-dev \
-        oniguruma-dev \
  && docker-php-ext-configure gd \
         --with-freetype \
         --with-jpeg \
         --with-webp \
- && docker-php-ext-install -j"$(nproc)" \
+ && docker-php-ext-install \
         pdo_mysql \
         gd \
         opcache \
