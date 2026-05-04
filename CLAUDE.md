@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**M1 (Docker runtime image), M2 (licence key management), M3 (`init` command + file generators), and M4 (deploy command pipeline) are complete.** M5 (plugin management) is next.
+**M1 (Docker runtime image), M2 (licence key management), M3 (`init` command + file generators), and M4 (deploy command pipeline) are complete.** M5 (backup and restore) is next.
 
 ## What this project is
 
@@ -232,9 +232,9 @@ bundle exec rspec --tag '~integration'  # all unit tests (204 examples)
 
 ```
 lib/octobercms/commands/
-  plugin.rb / backup.rb
+  backup.rb
 lib/octobercms/services/
-  composer.rb / docker.rb / api_client.rb
+  docker.rb / api_client.rb
 ```
 
 Commands are thin (parsing, prompting, dispatching). Logic lives in services and generators.
@@ -264,7 +264,7 @@ Each step is its own subcommand for debugging: `octobercms build`, `octobercms m
 - The generated `Dockerfile` reads it via `COMPOSER_AUTH` env var during `composer install` only — it never enters image layers or the running container
 - Runtime container has no licence credentials
 
-_Planned (M5+): the CLI will fetch the licence key from the OctoberCMS API at build time using an account token (OAuth flow), eliminating manual key entry._
+_Planned (M6+): the CLI will fetch the licence key from the OctoberCMS API at build time using an account token (OAuth flow), eliminating manual key entry._
 
 **Never log or display the licence key or account token under any circumstance, including `--verbose` mode.** Redact any matching pattern from all output.
 

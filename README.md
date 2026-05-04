@@ -4,7 +4,7 @@
 
 A Ruby gem and Docker image that make deploying OctoberCMS a single-command operation against any Linux server. Built on [Kamal](https://kamal-deploy.org) as the deployment engine.
 
-> **Status:** M1 complete ✓ — M2 complete ✓ (`auth` command set, licence key management) — M3 complete ✓ (`init` command, deployment scaffolding) — M4 complete ✓ (`deploy` pipeline, `doctor` checks) — M5 next (plugin management).
+> **Status:** M1 complete ✓ — M2 complete ✓ (`auth` command set, licence key management) — M3 complete ✓ (`init` command, deployment scaffolding) — M4 complete ✓ (`deploy` pipeline, `doctor` checks) — M5 next (backup and restore).
 
 ---
 

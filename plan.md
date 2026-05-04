@@ -145,18 +145,7 @@ Builds on M2's credential management. Run inside the user's existing OctoberCMS 
 
 **Exit criteria:** Running `octobercms deploy` against a fresh Hetzner VPS produces a working HTTPS OctoberCMS site within 5 minutes of the first deploy and within 90 seconds for subsequent deploys, with no licence credentials present in the published image (verified by `docker history` inspection in CI) and no logged tokens or keys in any deploy output (verified by log scanning in CI).
 
-### M5 — Plugin management (weeks 11-12)
-
-- `octobercms plugin add <name>` updates the user's `composer.json`, regenerates `composer.lock`, and prompts to redeploy
-- `octobercms plugin remove <name>` reverses the above
-- `octobercms plugin list` shows installed plugins with versions and source (Packagist vs local path)
-- Local-path plugins supported: a `plugins/` directory in the user's project gets COPYed into their derived image at build
-- A small curated index of known-working OctoberCMS plugins (mapping plugin name → Packagist package) ships with the gem; falls back to direct Packagist lookup for anything not in the index
-- Admin UI plugin/theme installation is supported at runtime: `/app/plugins` and `/app/themes` are writable by `www-data`; mount them as volumes to persist installs across redeployments
-
-**Exit criteria:** `octobercms plugin add rainlab.user && octobercms deploy` results in the RainLab User plugin being installed and active on the deployed site.
-
-### M6 — Backup and restore (weeks 13-14)
+### M5 — Backup and restore (weeks 11-12)
 
 - `octobercms backup` runs `mysqldump` inside the app container, tars `/app/storage`, writes to a configurable destination (local file, S3 URL, R2 URL)
 - `octobercms restore <backup-id>` does the inverse, with an interactive confirmation prompt
@@ -165,7 +154,7 @@ Builds on M2's credential management. Run inside the user's existing OctoberCMS 
 
 **Exit criteria:** A developer can back up a running site, destroy the server, provision a new server, run `octobercms deploy && octobercms restore`, and end up with the original site fully restored.
 
-### M7 — Documentation, tutorial, and launch (weeks 15-16)
+### M6 — Documentation, tutorial, and launch (weeks 13-14)
 
 - Documentation site live with command reference auto-generated from Thor command definitions
 - Getting-started tutorial: "From zero to deployed OctoberCMS in 15 minutes" — tested with three developers who have never used the tool
@@ -174,6 +163,8 @@ Builds on M2's credential management. Run inside the user's existing OctoberCMS 
 - Gem version bumped to `1.0.0`
 
 **Exit criteria:** Three external developers complete the tutorial without needing direct support, end-to-end, on three different hosting providers (Hetzner, DigitalOcean, Vultr).
+
+> **Note:** Plugin management (originally M5) was cut. OctoberCMS plugins are standard Composer packages — users manage them directly via `composer.json` and redeploy. Runtime installs are supported via the admin UI with `/app/plugins` volume-mounted. No CLI wrapper adds sufficient value.
 
 ## Engineering principles
 
@@ -211,7 +202,7 @@ Builds on M2's credential management. Run inside the user's existing OctoberCMS 
 
 ## Team and time
 
-Realistic estimate: **16 weeks for one experienced engineer working full-time on the CLI**. Roughly 7 months part-time alongside other commitments. The deploy lifecycle (M4) and backup/restore (M6) are the milestones most likely to slip — both involve real-world infrastructure debugging that doesn't compress well. There are no external team dependencies on the critical path.
+Realistic estimate: **14 weeks for one experienced engineer working full-time on the CLI**. Roughly 6 months part-time alongside other commitments. The deploy lifecycle (M4) and backup/restore (M5) are the milestones most likely to slip — both involve real-world infrastructure debugging that doesn't compress well. There are no external team dependencies on the critical path.
 
 ## Dependencies on other teams
 
