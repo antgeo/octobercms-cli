@@ -1,15 +1,18 @@
 # OctoberCMS Docker runtime image
 
-The published image is a **runtime environment only**: PHP 8.3-FPM + Nginx + s6-overlay. It contains no OctoberCMS application code. You bring your own OctoberCMS project and build a derived image on top of it.
+The published image is a **runtime environment only**: PHP-FPM + Nginx + s6-overlay. It contains no OctoberCMS application code. You bring your own OctoberCMS project and build a derived image on top of it.
 
 ## Image tags
 
-| Tag | Use |
+| Tag | PHP version |
 |---|---|
-| `ghcr.io/antgeo/octobercms:php8.3` | PHP 8.3 runtime |
-| `ghcr.io/antgeo/octobercms:latest` | Latest published runtime |
+| `ghcr.io/antgeo/octobercms:php8.2` | PHP 8.2 |
+| `ghcr.io/antgeo/octobercms:php8.3` | PHP 8.3 |
+| `ghcr.io/antgeo/octobercms:php8.4` | PHP 8.4 |
+| `ghcr.io/antgeo/octobercms:php8.5` | PHP 8.5 |
+| `ghcr.io/antgeo/octobercms:latest` | PHP 8.5 (current latest) |
 
-Tags encode the PHP version, not the OctoberCMS version. OctoberCMS version is determined by your own `composer.json`.
+Tags encode the PHP version, not the OctoberCMS version. OctoberCMS version is determined by your own `composer.json`. All tags are published for `linux/amd64` and `linux/arm64`.
 
 ---
 
@@ -168,7 +171,12 @@ docker exec <container> cat /app/.env
 ```sh
 git clone https://github.com/antgeo/octobercms-cli
 cd octobercms-cli
+
+# Default PHP version (8.3)
 docker build -f docker/Dockerfile -t octobercms:php8.3 .
+
+# Specific PHP version
+docker build -f docker/Dockerfile --build-arg PHP_VERSION=8.4 -t octobercms:php8.4 .
 ```
 
 No credentials required — the runtime image contains no OctoberCMS code.
