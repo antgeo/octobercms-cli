@@ -74,15 +74,19 @@ jobs:
           sbom: true
 
       # ── Image size check ──────────────────────────────────────────────────
+      # The build digest is a manifest list (multi-platform). Drill into the
+      # linux/amd64 platform manifest to get actual layer sizes.
       - name: Check compressed image size
         run: |
           DIGEST="${{ steps.build.outputs.digest }}"
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
-          docker pull "${IMAGE}"
-          SIZE_BYTES=$(docker manifest inspect "${IMAGE}" \
+          AMD64_DIGEST=$(docker manifest inspect \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}" \
+            | jq -r '.manifests[] | select(.platform.architecture=="amd64" and .platform.os=="linux") | .digest')
+          SIZE_BYTES=$(docker manifest inspect \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${AMD64_DIGEST}" \
             | jq '[.layers[].size] | add')
           SIZE_MB=$(echo "scale=1; ${SIZE_BYTES}/1024/1024" | bc)
-          echo "Compressed image size: ${SIZE_MB} MB"
+          echo "Compressed image size (linux/amd64): ${SIZE_MB} MB"
           if [ "${SIZE_BYTES}" -gt $((300 * 1024 * 1024)) ]; then
               echo "ERROR: image exceeds 300 MB compressed (${SIZE_MB} MB)" >&2
               exit 1

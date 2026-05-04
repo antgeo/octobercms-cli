@@ -48,7 +48,7 @@ RUN apk add --no-cache \
         bcmath \
         mbstring \
         zip \
- && docker-php-ext-enable opcache \
+ && (php -r "exit(version_compare(PHP_VERSION,'8.5.0','>=') ? 0 : 1);" || docker-php-ext-enable opcache) \
  && apk del .build-deps \
  && rm -rf /var/cache/apk/*
 
