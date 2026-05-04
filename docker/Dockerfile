@@ -37,6 +37,7 @@ RUN apk add --no-cache \
         libpng-dev \
         libwebp-dev \
         libzip-dev \
+        oniguruma-dev \
  && docker-php-ext-configure gd \
         --with-freetype \
         --with-jpeg \
